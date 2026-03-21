@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsPackable>true</IsPackable>
+    <PackageId>ClaudeAgentSdk</PackageId>
+    <Description>C# wrapper for the Claude Code CLI agent SDK</Description>
+    <InternalsVisibleTo>ClaudeAgentSdk.Tests</InternalsVisibleTo>
+  </PropertyGroup>
+
+</Project>
