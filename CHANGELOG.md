@@ -19,3 +19,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `JsonStreamReader` with partial JSON buffering for handling truncated lines
 - `CliFinder` to locate the Claude CLI binary (explicit path → env var → PATH → well-known locations)
 - 40 unit tests covering deserialization, stream reading, args building, and query flow
+- NuGet package publishing with automatic versioning via MinVer
+- GitHub Actions CI pipeline (build + test on push/PR)
+- Tag-triggered release workflow (NuGet publish + GitHub release)
+- Release script (`scripts/release.sh`) for version bumping and changelog automation
