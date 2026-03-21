@@ -5,7 +5,10 @@
     <IsPackable>true</IsPackable>
     <PackageId>ClaudeAgentSdk</PackageId>
     <Description>C# wrapper for the Claude Code CLI agent SDK</Description>
-    <InternalsVisibleTo>ClaudeAgentSdk.Tests</InternalsVisibleTo>
   </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ClaudeAgentSdk.Tests" />
+  </ItemGroup>
 
 </Project>
