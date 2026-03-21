@@ -5,10 +5,20 @@
     <IsPackable>true</IsPackable>
     <PackageId>ClaudeAgentSdk</PackageId>
     <Description>C# wrapper for the Claude Code CLI agent SDK</Description>
+    <PackageTags>claude;ai;agent;sdk;llm;anthropic</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="ClaudeAgentSdk.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MinVer" Version="7.0.0" PrivateAssets="all" />
   </ItemGroup>
 
 </Project>

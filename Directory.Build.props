@@ -8,5 +8,10 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <EnableAotAnalyzer>true</EnableAotAnalyzer>
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <Authors>Harry Jenkins</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/hazzajenko/claude-agent-sdk-csharp</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/hazzajenko/claude-agent-sdk-csharp</PackageProjectUrl>
   </PropertyGroup>
 </Project>
