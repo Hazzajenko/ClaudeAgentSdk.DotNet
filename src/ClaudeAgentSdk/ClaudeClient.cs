@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
 using ClaudeAgentSdk.Control;
@@ -19,6 +20,7 @@ public sealed class ClaudeClient : IAsyncDisposable
     private Channel<Message>? _messageChannel;
     private Task? _readerTask;
     private CancellationTokenSource? _readerCts;
+    private JsonElement _initializationResult;
     private bool _disposed;
 
     public ClaudeClient(ClaudeClientOptions? options = null)
@@ -130,6 +132,32 @@ public sealed class ClaudeClient : IAsyncDisposable
         // Start background reader
         _readerCts = new CancellationTokenSource();
         _readerTask = Task.Run(() => ReadMessagesBackgroundAsync(_readerCts.Token), cancellationToken);
+
+        // Send initialize handshake
+        await InitializeAsync(cancellationToken);
+    }
+
+    private async Task InitializeAsync(CancellationToken cancellationToken)
+    {
+        using var doc = JsonDocument.Parse(BuildInitializeRequestJson());
+        var response = await _controlHandler!.SendControlRequestAsync(
+            doc.RootElement.Clone(),
+            TimeSpan.FromSeconds(120), // longer timeout — MCP servers may take time to start
+            cancellationToken);
+        _initializationResult = response;
+    }
+
+    private string BuildInitializeRequestJson()
+    {
+        using var stream = new MemoryStream();
+        using (var w = new Utf8JsonWriter(stream))
+        {
+            w.WriteStartObject();
+            w.WriteString("subtype", "initialize");
+            w.WriteNull("hooks");
+            w.WriteEndObject();
+        }
+        return Encoding.UTF8.GetString(stream.ToArray());
     }
 
     private async Task ReadMessagesBackgroundAsync(CancellationToken cancellationToken)
