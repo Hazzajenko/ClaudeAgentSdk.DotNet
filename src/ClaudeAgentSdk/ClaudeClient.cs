@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
+using ClaudeAgentSdk.Agents;
 using ClaudeAgentSdk.Control;
 using ClaudeAgentSdk.Messages;
 using ClaudeAgentSdk.Transport;
@@ -155,6 +156,12 @@ public sealed class ClaudeClient : IAsyncDisposable
             w.WriteStartObject();
             w.WriteString("subtype", "initialize");
             w.WriteNull("hooks");
+
+            if (_options.Agents is { Count: > 0 })
+            {
+                AgentSerializer.WriteAgentsProperty(w, _options.Agents);
+            }
+
             w.WriteEndObject();
         }
         return Encoding.UTF8.GetString(stream.ToArray());
