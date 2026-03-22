@@ -7,6 +7,28 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- `EffortLevel` option to control thinking depth (`Low`, `Medium`, `High`, `Max`) via `--effort`
+- `ThinkingConfig` discriminated union (`Adaptive`, `Enabled(BudgetTokens)`, `Disabled`) — takes precedence over `MaxThinkingTokens`
+- `ForkSession` flag to fork resumed sessions into a new session ID
+- `Betas` list for enabling beta features (e.g., `context-1m-2025-08-07`)
+- `EnableFileCheckpointing` to track file changes for rewind support
+- `SettingSources` option to control which setting files are loaded (`user`, `project`, `local`) — replaces hardcoded empty value
+- `SdkPluginConfig` for local plugin directory registration via `--plugin-dir`
+- `SandboxSettings` with nested `SandboxNetworkConfig` and `SandboxIgnoreViolations` for bash command sandboxing
+- `ExtraArgs` escape hatch for passing arbitrary CLI flags not yet covered by the SDK
+- `OutputFormatSchema` for structured output via `--json-schema`, with `ResultMessage.StructuredOutput` extraction
+- `Claude.QueryAsync<T>()` typed query helper — deserializes structured output using AOT-safe `JsonTypeInfo<T>`
+- Task message types: `TaskStartedMessage`, `TaskProgressMessage`, `TaskNotificationMessage` with `TaskUsage` struct — parsed from system message subtypes
+- MCP server config types: `McpStdioServerConfig`, `McpSseServerConfig`, `McpHttpServerConfig` with AOT-safe serializer and `--mcp-config` CLI mapping
+- MCP status types (`McpServerStatus`, `McpServerInfo`, `McpToolInfo`) for future runtime control
+
+### Changed
+
+- Centralize environment variable building into `CliArgsBuilder.BuildEnvironmentVariables()` (was duplicated in `Claude.cs` and `ClaudeClient.cs`)
+- Unseal `SystemMessage` so task message subtypes can inherit from it
+
 ## [0.0.3] - 2026-03-22
 
 ### Changed
