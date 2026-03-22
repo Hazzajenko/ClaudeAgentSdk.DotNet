@@ -214,4 +214,25 @@ public class CliArgsBuilderTests
 
         await Assert.That(args).DoesNotContain("--fork-session");
     }
+
+    [Test]
+    public async Task Betas_JoinedWithComma()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions
+        {
+            Betas = ["context-1m-2025-08-07", "another-beta"]
+        });
+
+        int idx = args.IndexOf("--betas");
+        await Assert.That(idx).IsGreaterThanOrEqualTo(0);
+        await Assert.That(args[idx + 1]).IsEqualTo("context-1m-2025-08-07,another-beta");
+    }
+
+    [Test]
+    public async Task Betas_Default_OmitsArg()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions());
+
+        await Assert.That(args).DoesNotContain("--betas");
+    }
 }

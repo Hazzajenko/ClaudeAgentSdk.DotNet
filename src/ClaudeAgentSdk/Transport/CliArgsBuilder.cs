@@ -108,6 +108,12 @@ internal static class CliArgsBuilder
             args.Add("--fork-session");
         }
 
+        if (options.Betas is { Count: > 0 })
+        {
+            args.Add("--betas");
+            args.Add(string.Join(",", options.Betas));
+        }
+
         if (options.Resume is not null)
         {
             args.Add("--resume");
