@@ -138,6 +138,18 @@ internal static class CliArgsBuilder
             });
         }
 
+        if (options.Plugins is { Count: > 0 })
+        {
+            foreach (var plugin in options.Plugins)
+            {
+                if (plugin.Type == "local")
+                {
+                    args.Add("--plugin-dir");
+                    args.Add(plugin.Path);
+                }
+            }
+        }
+
         args.Add("--setting-sources");
         args.Add(options.SettingSources is { Count: > 0 }
             ? string.Join(",", options.SettingSources)

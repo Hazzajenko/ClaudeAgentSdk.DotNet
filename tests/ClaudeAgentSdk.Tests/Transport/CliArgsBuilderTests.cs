@@ -290,4 +290,35 @@ public class CliArgsBuilderTests
         await Assert.That(idx).IsGreaterThanOrEqualTo(0);
         await Assert.That(args[idx + 1]).IsEqualTo("");
     }
+
+    [Test]
+    public async Task Plugins_AddsPluginDirForEach()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions
+        {
+            Plugins =
+            [
+                new SdkPluginConfig("local", "/path/to/plugin1"),
+                new SdkPluginConfig("local", "/path/to/plugin2")
+            ]
+        });
+
+        var pluginDirIndices = new List<int>();
+        for (int i = 0; i < args.Count; i++)
+        {
+            if (args[i] == "--plugin-dir") pluginDirIndices.Add(i);
+        }
+
+        await Assert.That(pluginDirIndices).Count().IsEqualTo(2);
+        await Assert.That(args[pluginDirIndices[0] + 1]).IsEqualTo("/path/to/plugin1");
+        await Assert.That(args[pluginDirIndices[1] + 1]).IsEqualTo("/path/to/plugin2");
+    }
+
+    [Test]
+    public async Task Plugins_Default_OmitsArg()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions());
+
+        await Assert.That(args).DoesNotContain("--plugin-dir");
+    }
 }

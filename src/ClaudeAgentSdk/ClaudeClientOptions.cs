@@ -27,6 +27,7 @@ public sealed record ClaudeClientOptions
     public IReadOnlyList<string>? Betas { get; init; }
     public bool EnableFileCheckpointing { get; init; }
     public IReadOnlyList<string>? SettingSources { get; init; }
+    public IReadOnlyList<SdkPluginConfig>? Plugins { get; init; }
     public IReadOnlyDictionary<string, string>? EnvironmentVariables { get; init; }
     public Action<string>? StderrCallback { get; init; }
 }
@@ -51,3 +52,5 @@ public abstract record ThinkingConfig;
 public sealed record ThinkingConfigAdaptive : ThinkingConfig;
 public sealed record ThinkingConfigEnabled(int BudgetTokens) : ThinkingConfig;
 public sealed record ThinkingConfigDisabled : ThinkingConfig;
+
+public sealed record SdkPluginConfig(string Type, string Path);
