@@ -159,6 +159,12 @@ internal static class CliArgsBuilder
             }
         }
 
+        if (options.OutputFormatSchema is { } schema)
+        {
+            args.Add("--json-schema");
+            args.Add(schema.GetRawText());
+        }
+
         if (options.ExtraArgs is { Count: > 0 })
         {
             foreach (var (flag, value) in options.ExtraArgs)

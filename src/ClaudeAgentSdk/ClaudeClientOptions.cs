@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace ClaudeAgentSdk;
 
 /// <summary>
@@ -30,6 +32,7 @@ public sealed record ClaudeClientOptions
     public IReadOnlyList<SdkPluginConfig>? Plugins { get; init; }
     public SandboxSettings? Sandbox { get; init; }
     public IReadOnlyDictionary<string, string?>? ExtraArgs { get; init; }
+    public JsonElement? OutputFormatSchema { get; init; }
     public IReadOnlyDictionary<string, string>? EnvironmentVariables { get; init; }
     public Action<string>? StderrCallback { get; init; }
 }

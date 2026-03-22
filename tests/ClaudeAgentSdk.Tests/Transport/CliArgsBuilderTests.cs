@@ -1,3 +1,4 @@
+using System.Text.Json;
 using ClaudeAgentSdk;
 using ClaudeAgentSdk.Transport;
 
@@ -408,5 +409,30 @@ public class CliArgsBuilderTests
 
         // Should not have any --extra* args (just the normal ones)
         await Assert.That(args).DoesNotContain("--custom-flag");
+    }
+
+    [Test]
+    public async Task OutputFormatSchema_AddsJsonSchemaArg()
+    {
+        using var doc = JsonDocument.Parse("""{"type":"object","properties":{"name":{"type":"string"}}}""");
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions
+        {
+            OutputFormatSchema = doc.RootElement.Clone()
+        });
+
+        int idx = args.IndexOf("--json-schema");
+        await Assert.That(idx).IsGreaterThanOrEqualTo(0);
+
+        string schema = args[idx + 1];
+        await Assert.That(schema).Contains("\"type\":\"object\"");
+        await Assert.That(schema).Contains("\"name\"");
+    }
+
+    [Test]
+    public async Task OutputFormatSchema_Default_OmitsArg()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions());
+
+        await Assert.That(args).DoesNotContain("--json-schema");
     }
 }
