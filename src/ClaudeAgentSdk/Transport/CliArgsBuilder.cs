@@ -67,10 +67,23 @@ internal static class CliArgsBuilder
             args.Add(options.MaxBudgetUsd.Value.ToString());
         }
 
-        if (options.MaxThinkingTokens is not null)
+        // Thinking config takes precedence over MaxThinkingTokens
+        int? resolvedThinkingTokens = options.MaxThinkingTokens;
+        if (options.Thinking is not null)
+        {
+            resolvedThinkingTokens = options.Thinking switch
+            {
+                ThinkingConfigAdaptive => 32_000,
+                ThinkingConfigEnabled e => e.BudgetTokens,
+                ThinkingConfigDisabled => 0,
+                _ => resolvedThinkingTokens
+            };
+        }
+
+        if (resolvedThinkingTokens is not null)
         {
             args.Add("--max-thinking-tokens");
-            args.Add(options.MaxThinkingTokens.Value.ToString());
+            args.Add(resolvedThinkingTokens.Value.ToString());
         }
 
         if (options.PermissionMode != PermissionMode.Default)

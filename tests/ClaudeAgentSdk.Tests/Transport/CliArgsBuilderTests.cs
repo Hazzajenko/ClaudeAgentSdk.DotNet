@@ -141,4 +141,61 @@ public class CliArgsBuilderTests
 
         await Assert.That(args).DoesNotContain("--effort");
     }
+
+    [Test]
+    public async Task Thinking_Adaptive_DefaultsTo32000()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions
+        {
+            Thinking = new ThinkingConfigAdaptive()
+        });
+
+        int idx = args.IndexOf("--max-thinking-tokens");
+        await Assert.That(idx).IsGreaterThanOrEqualTo(0);
+        await Assert.That(args[idx + 1]).IsEqualTo("32000");
+    }
+
+    [Test]
+    public async Task Thinking_Enabled_UsesBudgetTokens()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions
+        {
+            Thinking = new ThinkingConfigEnabled(16000)
+        });
+
+        int idx = args.IndexOf("--max-thinking-tokens");
+        await Assert.That(idx).IsGreaterThanOrEqualTo(0);
+        await Assert.That(args[idx + 1]).IsEqualTo("16000");
+    }
+
+    [Test]
+    public async Task Thinking_Disabled_SetsZero()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions
+        {
+            Thinking = new ThinkingConfigDisabled()
+        });
+
+        int idx = args.IndexOf("--max-thinking-tokens");
+        await Assert.That(idx).IsGreaterThanOrEqualTo(0);
+        await Assert.That(args[idx + 1]).IsEqualTo("0");
+    }
+
+    [Test]
+    public async Task Thinking_TakesPrecedenceOverMaxThinkingTokens()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions
+        {
+            MaxThinkingTokens = 5000,
+            Thinking = new ThinkingConfigEnabled(20000)
+        });
+
+        int idx = args.IndexOf("--max-thinking-tokens");
+        await Assert.That(idx).IsGreaterThanOrEqualTo(0);
+        await Assert.That(args[idx + 1]).IsEqualTo("20000");
+
+        // Should only appear once
+        int secondIdx = args.IndexOf("--max-thinking-tokens", idx + 1);
+        await Assert.That(secondIdx).IsEqualTo(-1);
+    }
 }

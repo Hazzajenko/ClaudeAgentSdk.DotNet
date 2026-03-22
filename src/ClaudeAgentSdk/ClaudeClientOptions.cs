@@ -22,6 +22,7 @@ public sealed record ClaudeClientOptions
     public string? Resume { get; init; }
     public bool IncludePartialMessages { get; init; }
     public EffortLevel? Effort { get; init; }
+    public ThinkingConfig? Thinking { get; init; }
     public IReadOnlyDictionary<string, string>? EnvironmentVariables { get; init; }
     public Action<string>? StderrCallback { get; init; }
 }
@@ -41,3 +42,8 @@ public enum EffortLevel
     High,
     Max
 }
+
+public abstract record ThinkingConfig;
+public sealed record ThinkingConfigAdaptive : ThinkingConfig;
+public sealed record ThinkingConfigEnabled(int BudgetTokens) : ThinkingConfig;
+public sealed record ThinkingConfigDisabled : ThinkingConfig;
