@@ -54,6 +54,18 @@ public static class Sessions
         return null;
     }
 
+    /// <summary>
+    /// Rename a session by appending a custom-title entry.
+    /// </summary>
+    public static void Rename(string sessionId, string title, string? directory = null) =>
+        SessionMutations.Rename(sessionId, title, directory);
+
+    /// <summary>
+    /// Tag a session. Pass null to clear the tag.
+    /// </summary>
+    public static void Tag(string sessionId, string? tag, string? directory = null) =>
+        SessionMutations.Tag(sessionId, tag, directory);
+
     private static IReadOnlyList<SessionInfo> ListForProject(string directory, int? limit)
     {
         string canonical = SessionStorage.CanonicalizePath(directory);
