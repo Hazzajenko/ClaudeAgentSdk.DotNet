@@ -119,4 +119,26 @@ public class CliArgsBuilderTests
         await Assert.That(idx).IsGreaterThanOrEqualTo(0);
         await Assert.That(args[idx + 1]).IsEqualTo("10000");
     }
+
+    [Test]
+    [Arguments(EffortLevel.Low, "low")]
+    [Arguments(EffortLevel.Medium, "medium")]
+    [Arguments(EffortLevel.High, "high")]
+    [Arguments(EffortLevel.Max, "max")]
+    public async Task Effort_MapsToCliString(EffortLevel level, string expected)
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions { Effort = level });
+
+        int idx = args.IndexOf("--effort");
+        await Assert.That(idx).IsGreaterThanOrEqualTo(0);
+        await Assert.That(args[idx + 1]).IsEqualTo(expected);
+    }
+
+    [Test]
+    public async Task Effort_Default_OmitsArg()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions());
+
+        await Assert.That(args).DoesNotContain("--effort");
+    }
 }

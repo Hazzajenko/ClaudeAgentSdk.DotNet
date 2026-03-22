@@ -21,6 +21,7 @@ public sealed record ClaudeClientOptions
     public bool ContinueConversation { get; init; }
     public string? Resume { get; init; }
     public bool IncludePartialMessages { get; init; }
+    public EffortLevel? Effort { get; init; }
     public IReadOnlyDictionary<string, string>? EnvironmentVariables { get; init; }
     public Action<string>? StderrCallback { get; init; }
 }
@@ -31,4 +32,12 @@ public enum PermissionMode
     AcceptEdits,
     Plan,
     BypassPermissions
+}
+
+public enum EffortLevel
+{
+    Low,
+    Medium,
+    High,
+    Max
 }

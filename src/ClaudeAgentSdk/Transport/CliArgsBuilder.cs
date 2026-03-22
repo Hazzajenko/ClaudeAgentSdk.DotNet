@@ -101,6 +101,19 @@ internal static class CliArgsBuilder
             args.Add("--include-partial-messages");
         }
 
+        if (options.Effort is { } effort)
+        {
+            args.Add("--effort");
+            args.Add(effort switch
+            {
+                EffortLevel.Low => "low",
+                EffortLevel.Medium => "medium",
+                EffortLevel.High => "high",
+                EffortLevel.Max => "max",
+                _ => "medium"
+            });
+        }
+
         // Always set --setting-sources to empty to avoid loading user/project settings
         args.Add("--setting-sources");
         args.Add("");
