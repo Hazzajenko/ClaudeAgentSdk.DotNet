@@ -143,8 +143,11 @@ public sealed class ClaudeClient : IAsyncDisposable
     public async Task StopTaskAsync(string taskId, CancellationToken cancellationToken = default) =>
         await SendSimpleControlRequestAsync($$$"""{"subtype":"stop_task","task_id":"{{{taskId}}}"}""", cancellationToken);
 
-    public async Task<JsonElement> GetMcpStatusAsync(CancellationToken cancellationToken = default) =>
-        await SendSimpleControlRequestAsync("""{"subtype":"mcp_status"}""", cancellationToken);
+    public async Task<Mcp.McpStatusResponse> GetMcpStatusAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await SendSimpleControlRequestAsync("""{"subtype":"mcp_status"}""", cancellationToken);
+        return Mcp.McpStatusParser.Parse(result);
+    }
 
     private async Task<JsonElement> SendSimpleControlRequestAsync(string requestJson, CancellationToken cancellationToken)
     {
