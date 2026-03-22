@@ -267,4 +267,27 @@ public class CliArgsBuilderTests
         await Assert.That(env).ContainsKey("MY_VAR");
         await Assert.That(env["MY_VAR"]).IsEqualTo("hello");
     }
+
+    [Test]
+    public async Task SettingSources_WhenSet_JoinedWithComma()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions
+        {
+            SettingSources = ["user", "project"]
+        });
+
+        int idx = args.IndexOf("--setting-sources");
+        await Assert.That(idx).IsGreaterThanOrEqualTo(0);
+        await Assert.That(args[idx + 1]).IsEqualTo("user,project");
+    }
+
+    [Test]
+    public async Task SettingSources_Default_EmptyString()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions());
+
+        int idx = args.IndexOf("--setting-sources");
+        await Assert.That(idx).IsGreaterThanOrEqualTo(0);
+        await Assert.That(args[idx + 1]).IsEqualTo("");
+    }
 }

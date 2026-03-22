@@ -138,9 +138,10 @@ internal static class CliArgsBuilder
             });
         }
 
-        // Always set --setting-sources to empty to avoid loading user/project settings
         args.Add("--setting-sources");
-        args.Add("");
+        args.Add(options.SettingSources is { Count: > 0 }
+            ? string.Join(",", options.SettingSources)
+            : "");
 
         return args;
     }

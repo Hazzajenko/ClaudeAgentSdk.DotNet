@@ -26,6 +26,7 @@ public sealed record ClaudeClientOptions
     public bool ForkSession { get; init; }
     public IReadOnlyList<string>? Betas { get; init; }
     public bool EnableFileCheckpointing { get; init; }
+    public IReadOnlyList<string>? SettingSources { get; init; }
     public IReadOnlyDictionary<string, string>? EnvironmentVariables { get; init; }
     public Action<string>? StderrCallback { get; init; }
 }
