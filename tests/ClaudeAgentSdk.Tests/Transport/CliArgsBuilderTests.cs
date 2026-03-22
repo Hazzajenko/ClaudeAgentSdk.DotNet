@@ -198,4 +198,20 @@ public class CliArgsBuilderTests
         int secondIdx = args.IndexOf("--max-thinking-tokens", idx + 1);
         await Assert.That(secondIdx).IsEqualTo(-1);
     }
+
+    [Test]
+    public async Task ForkSession_True_AddsFlag()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions { ForkSession = true });
+
+        await Assert.That(args).Contains("--fork-session");
+    }
+
+    [Test]
+    public async Task ForkSession_Default_OmitsFlag()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions());
+
+        await Assert.That(args).DoesNotContain("--fork-session");
+    }
 }

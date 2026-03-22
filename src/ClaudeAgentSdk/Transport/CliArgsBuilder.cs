@@ -103,6 +103,11 @@ internal static class CliArgsBuilder
             args.Add("--continue");
         }
 
+        if (options.ForkSession)
+        {
+            args.Add("--fork-session");
+        }
+
         if (options.Resume is not null)
         {
             args.Add("--resume");

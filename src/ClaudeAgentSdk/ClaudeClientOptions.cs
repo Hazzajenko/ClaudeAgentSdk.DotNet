@@ -23,6 +23,7 @@ public sealed record ClaudeClientOptions
     public bool IncludePartialMessages { get; init; }
     public EffortLevel? Effort { get; init; }
     public ThinkingConfig? Thinking { get; init; }
+    public bool ForkSession { get; init; }
     public IReadOnlyDictionary<string, string>? EnvironmentVariables { get; init; }
     public Action<string>? StderrCallback { get; init; }
 }
