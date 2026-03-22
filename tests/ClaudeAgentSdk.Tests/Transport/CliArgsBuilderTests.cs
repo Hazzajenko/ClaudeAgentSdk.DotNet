@@ -376,4 +376,37 @@ public class CliArgsBuilderTests
         await Assert.That(json).Contains("\"allowLocalBinding\":true");
         await Assert.That(json).Contains("/var/run/docker.sock");
     }
+
+    [Test]
+    public async Task ExtraArgs_WithValue_AddsKeyValue()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions
+        {
+            ExtraArgs = new Dictionary<string, string?> { ["custom-flag"] = "value1" }
+        });
+
+        int idx = args.IndexOf("--custom-flag");
+        await Assert.That(idx).IsGreaterThanOrEqualTo(0);
+        await Assert.That(args[idx + 1]).IsEqualTo("value1");
+    }
+
+    [Test]
+    public async Task ExtraArgs_NullValue_AddsBooleanFlag()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions
+        {
+            ExtraArgs = new Dictionary<string, string?> { ["debug-to-stderr"] = null }
+        });
+
+        await Assert.That(args).Contains("--debug-to-stderr");
+    }
+
+    [Test]
+    public async Task ExtraArgs_Default_OmitsArg()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions());
+
+        // Should not have any --extra* args (just the normal ones)
+        await Assert.That(args).DoesNotContain("--custom-flag");
+    }
 }

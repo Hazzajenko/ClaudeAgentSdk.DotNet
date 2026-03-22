@@ -159,6 +159,16 @@ internal static class CliArgsBuilder
             }
         }
 
+        if (options.ExtraArgs is { Count: > 0 })
+        {
+            foreach (var (flag, value) in options.ExtraArgs)
+            {
+                args.Add($"--{flag}");
+                if (value is not null)
+                    args.Add(value);
+            }
+        }
+
         args.Add("--setting-sources");
         args.Add(options.SettingSources is { Count: > 0 }
             ? string.Join(",", options.SettingSources)
