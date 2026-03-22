@@ -7,6 +7,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.0.5] - 2026-03-22
+
 ### Added
 
 - Session utilities: `Sessions.List()`, `Sessions.GetInfo()`, `Sessions.GetMessages()`, `Sessions.Rename()`, `Sessions.Tag()` — reads JSONL session files directly from `~/.claude/projects/` with conversation chain reconstruction
