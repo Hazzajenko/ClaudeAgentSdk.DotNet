@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Threading.Channels;
 using ClaudeAgentSdk.Agents;
 using ClaudeAgentSdk.Control;
+using ClaudeAgentSdk.Hooks;
 using ClaudeAgentSdk.Messages;
 using ClaudeAgentSdk.Transport;
 
@@ -22,6 +23,8 @@ public sealed class ClaudeClient : IAsyncDisposable
     private Task? _readerTask;
     private CancellationTokenSource? _readerCts;
     private JsonElement _initializationResult;
+    private readonly Dictionary<string, HookCallback> _hookCallbacks = new();
+    private int _nextCallbackId;
     private bool _disposed;
 
     public ClaudeClient(ClaudeClientOptions? options = null)
@@ -158,6 +161,14 @@ public sealed class ClaudeClient : IAsyncDisposable
         return await _controlHandler.SendControlRequestAsync(doc.RootElement.Clone(), cancellationToken: cancellationToken);
     }
 
+    private async Task<JsonElement> HandleHookCallbackAsync(
+        string callbackId, JsonElement input, string? toolUseId, CancellationToken ct)
+    {
+        if (!_hookCallbacks.TryGetValue(callbackId, out var callback))
+            throw new InvalidOperationException($"No hook callback found for ID: {callbackId}");
+        return await callback(input, toolUseId, ct);
+    }
+
     internal ControlProtocolHandler? ControlHandler => _controlHandler;
 
     private async Task ConnectAsync(CancellationToken cancellationToken)
@@ -182,6 +193,9 @@ public sealed class ClaudeClient : IAsyncDisposable
             SingleReader = false,
             SingleWriter = true
         });
+
+        // Wire up hook callback dispatch
+        _controlHandler.OnHookCallback = HandleHookCallbackAsync;
 
         // Start background reader
         _readerCts = new CancellationTokenSource();
@@ -208,7 +222,43 @@ public sealed class ClaudeClient : IAsyncDisposable
         {
             w.WriteStartObject();
             w.WriteString("subtype", "initialize");
-            w.WriteNull("hooks");
+
+            if (_options.Hooks is { Count: > 0 })
+            {
+                w.WriteStartObject("hooks");
+                foreach (var (evt, matchers) in _options.Hooks)
+                {
+                    w.WriteStartArray(evt.ToWireString());
+                    foreach (var matcher in matchers)
+                    {
+                        w.WriteStartObject();
+                        if (matcher.Matcher is not null)
+                            w.WriteString("matcher", matcher.Matcher);
+                        else
+                            w.WriteNull("matcher");
+
+                        w.WriteStartArray("hookCallbackIds");
+                        foreach (var callback in matcher.Hooks)
+                        {
+                            string callbackId = $"hook_{_nextCallbackId++}";
+                            _hookCallbacks[callbackId] = callback;
+                            w.WriteStringValue(callbackId);
+                        }
+                        w.WriteEndArray();
+
+                        if (matcher.TimeoutSeconds is { } timeout)
+                            w.WriteNumber("timeout", timeout);
+
+                        w.WriteEndObject();
+                    }
+                    w.WriteEndArray();
+                }
+                w.WriteEndObject();
+            }
+            else
+            {
+                w.WriteNull("hooks");
+            }
 
             if (_options.Agents is { Count: > 0 })
             {
