@@ -5,7 +5,7 @@ C# wrapper for the Claude Code CLI agent SDK. Provides a typed, AOT-compatible i
 ## Install
 
 ```bash
-dotnet add package Claude.AgentSdk
+dotnet add package ClaudeAgentSdk.DotNet
 ```
 
 ## Usage

@@ -11,7 +11,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
-- Rename NuGet package from `ClaudeCodeAgentSDK` to `Claude.AgentSdk`
+- Rename NuGet package to `ClaudeAgentSdk.DotNet`
 
 ## [0.0.1] - 2026-03-21
 
