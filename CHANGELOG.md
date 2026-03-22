@@ -7,6 +7,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.0.4] - 2026-03-22
+
 ### Added
 
 - `EffortLevel` option to control thinking depth (`Low`, `Medium`, `High`, `Max`) via `--effort`
