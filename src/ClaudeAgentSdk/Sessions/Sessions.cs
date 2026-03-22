@@ -55,6 +55,22 @@ public static class Sessions
     }
 
     /// <summary>
+    /// Get conversation messages for a session in chronological order.
+    /// </summary>
+    public static IReadOnlyList<SessionMessage> GetMessages(
+        string sessionId, string? directory = null, int? limit = null, int offset = 0)
+    {
+        if (SessionStorage.ValidateUuid(sessionId) is null) return [];
+
+        string? content = ReadSessionFile(sessionId, directory);
+        if (content is null) return [];
+
+        var entries = SessionMessageParser.ParseTranscriptEntries(content);
+        var chain = SessionMessageParser.BuildConversationChain(entries);
+        return SessionMessageParser.ToSessionMessages(chain, limit, offset);
+    }
+
+    /// <summary>
     /// Rename a session by appending a custom-title entry.
     /// </summary>
     public static void Rename(string sessionId, string title, string? directory = null) =>
@@ -65,6 +81,35 @@ public static class Sessions
     /// </summary>
     public static void Tag(string sessionId, string? tag, string? directory = null) =>
         SessionMutations.Tag(sessionId, tag, directory);
+
+    private static string? ReadSessionFile(string sessionId, string? directory)
+    {
+        string fileName = $"{sessionId}.jsonl";
+
+        if (directory is not null)
+        {
+            string canonical = SessionStorage.CanonicalizePath(directory);
+            string? projectDir = SessionStorage.FindProjectDir(canonical);
+            if (projectDir is not null)
+            {
+                string path = Path.Combine(projectDir, fileName);
+                if (File.Exists(path))
+                    return File.ReadAllText(path);
+            }
+            return null;
+        }
+
+        string projectsDir = SessionStorage.GetProjectsDir();
+        if (!Directory.Exists(projectsDir)) return null;
+
+        foreach (string entry in Directory.GetDirectories(projectsDir))
+        {
+            string path = Path.Combine(entry, fileName);
+            if (File.Exists(path))
+                return File.ReadAllText(path);
+        }
+        return null;
+    }
 
     private static IReadOnlyList<SessionInfo> ListForProject(string directory, int? limit)
     {
