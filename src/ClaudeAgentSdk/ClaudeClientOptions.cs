@@ -1,4 +1,5 @@
 using System.Text.Json;
+using ClaudeAgentSdk.Mcp;
 
 namespace ClaudeAgentSdk;
 
@@ -33,6 +34,7 @@ public sealed record ClaudeClientOptions
     public SandboxSettings? Sandbox { get; init; }
     public IReadOnlyDictionary<string, string?>? ExtraArgs { get; init; }
     public JsonElement? OutputFormatSchema { get; init; }
+    public IReadOnlyDictionary<string, McpServerConfig>? McpServers { get; init; }
     public IReadOnlyDictionary<string, string>? EnvironmentVariables { get; init; }
     public Action<string>? StderrCallback { get; init; }
 }

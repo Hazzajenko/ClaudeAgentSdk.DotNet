@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using ClaudeAgentSdk.Mcp;
 
 namespace ClaudeAgentSdk.Transport;
 
@@ -157,6 +158,12 @@ internal static class CliArgsBuilder
                     args.Add(plugin.Path);
                 }
             }
+        }
+
+        if (options.McpServers is { Count: > 0 })
+        {
+            args.Add("--mcp-config");
+            args.Add(McpConfigSerializer.Serialize(options.McpServers));
         }
 
         if (options.OutputFormatSchema is { } schema)
