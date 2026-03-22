@@ -25,7 +25,7 @@ public sealed record AssistantMessage : Message
     public JsonElement? Usage { get; init; }
 }
 
-public sealed record SystemMessage : Message
+public record SystemMessage : Message
 {
     public required string Subtype { get; init; }
     public required JsonElement Data { get; init; }
@@ -70,4 +70,39 @@ public sealed record RateLimitEvent : Message
     public required RateLimitInfo RateLimitInfo { get; init; }
     public required string Uuid { get; init; }
     public required string SessionId { get; init; }
+}
+
+public readonly record struct TaskUsage(int TotalTokens, int ToolUses, int DurationMs);
+
+public sealed record TaskStartedMessage : SystemMessage
+{
+    public required string TaskId { get; init; }
+    public required string Description { get; init; }
+    public required string Uuid { get; init; }
+    public required string SessionId { get; init; }
+    public string? ToolUseId { get; init; }
+    public string? TaskType { get; init; }
+}
+
+public sealed record TaskProgressMessage : SystemMessage
+{
+    public required string TaskId { get; init; }
+    public required string Description { get; init; }
+    public required TaskUsage Usage { get; init; }
+    public required string Uuid { get; init; }
+    public required string SessionId { get; init; }
+    public string? ToolUseId { get; init; }
+    public string? LastToolName { get; init; }
+}
+
+public sealed record TaskNotificationMessage : SystemMessage
+{
+    public required string TaskId { get; init; }
+    public required string Status { get; init; }
+    public required string OutputFile { get; init; }
+    public required string Summary { get; init; }
+    public required string Uuid { get; init; }
+    public required string SessionId { get; init; }
+    public string? ToolUseId { get; init; }
+    public TaskUsage? Usage { get; init; }
 }

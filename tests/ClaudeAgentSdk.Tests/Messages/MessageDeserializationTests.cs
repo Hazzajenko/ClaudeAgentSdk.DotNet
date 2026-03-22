@@ -301,4 +301,122 @@ public class MessageDeserializationTests
         await Assert.That(() => ClaudeJsonOptions.DeserializeMessage(json))
             .ThrowsException();
     }
+
+    [Test]
+    public async Task TaskStartedMessage_Deserializes()
+    {
+        const string json = """
+            {
+                "type": "system",
+                "subtype": "task_started",
+                "data": {
+                    "task_id": "task-001",
+                    "description": "Running tests",
+                    "uuid": "msg-001",
+                    "session_id": "sess-001",
+                    "tool_use_id": "tool-001",
+                    "task_type": "agent"
+                }
+            }
+            """;
+
+        var msg = ClaudeJsonOptions.DeserializeMessage(json);
+
+        await Assert.That(msg).IsTypeOf<TaskStartedMessage>();
+        var task = (TaskStartedMessage)msg!;
+        await Assert.That(task.TaskId).IsEqualTo("task-001");
+        await Assert.That(task.Description).IsEqualTo("Running tests");
+        await Assert.That(task.Uuid).IsEqualTo("msg-001");
+        await Assert.That(task.SessionId).IsEqualTo("sess-001");
+        await Assert.That(task.ToolUseId).IsEqualTo("tool-001");
+        await Assert.That(task.TaskType).IsEqualTo("agent");
+        // Also a SystemMessage
+        await Assert.That(task.Subtype).IsEqualTo("task_started");
+    }
+
+    [Test]
+    public async Task TaskProgressMessage_Deserializes()
+    {
+        const string json = """
+            {
+                "type": "system",
+                "subtype": "task_progress",
+                "data": {
+                    "task_id": "task-001",
+                    "description": "Still running",
+                    "uuid": "msg-002",
+                    "session_id": "sess-001",
+                    "usage": {
+                        "total_tokens": 5000,
+                        "tool_uses": 3,
+                        "duration_ms": 12000
+                    },
+                    "last_tool_name": "Bash"
+                }
+            }
+            """;
+
+        var msg = ClaudeJsonOptions.DeserializeMessage(json);
+
+        await Assert.That(msg).IsTypeOf<TaskProgressMessage>();
+        var task = (TaskProgressMessage)msg!;
+        await Assert.That(task.TaskId).IsEqualTo("task-001");
+        await Assert.That(task.Usage.TotalTokens).IsEqualTo(5000);
+        await Assert.That(task.Usage.ToolUses).IsEqualTo(3);
+        await Assert.That(task.Usage.DurationMs).IsEqualTo(12000);
+        await Assert.That(task.LastToolName).IsEqualTo("Bash");
+    }
+
+    [Test]
+    public async Task TaskNotificationMessage_Deserializes()
+    {
+        const string json = """
+            {
+                "type": "system",
+                "subtype": "task_notification",
+                "data": {
+                    "task_id": "task-001",
+                    "status": "completed",
+                    "output_file": "/tmp/output.txt",
+                    "summary": "Tests passed",
+                    "uuid": "msg-003",
+                    "session_id": "sess-001",
+                    "usage": {
+                        "total_tokens": 10000,
+                        "tool_uses": 7,
+                        "duration_ms": 30000
+                    }
+                }
+            }
+            """;
+
+        var msg = ClaudeJsonOptions.DeserializeMessage(json);
+
+        await Assert.That(msg).IsTypeOf<TaskNotificationMessage>();
+        var task = (TaskNotificationMessage)msg!;
+        await Assert.That(task.TaskId).IsEqualTo("task-001");
+        await Assert.That(task.Status).IsEqualTo("completed");
+        await Assert.That(task.OutputFile).IsEqualTo("/tmp/output.txt");
+        await Assert.That(task.Summary).IsEqualTo("Tests passed");
+        await Assert.That(task.Usage).IsNotNull();
+        await Assert.That(task.Usage!.Value.TotalTokens).IsEqualTo(10000);
+    }
+
+    [Test]
+    public async Task SystemMessage_NonTaskSubtype_StillDeserializesAsSystemMessage()
+    {
+        const string json = """
+            {
+                "type": "system",
+                "subtype": "init",
+                "session_id": "sess-001"
+            }
+            """;
+
+        var msg = ClaudeJsonOptions.DeserializeMessage(json);
+
+        await Assert.That(msg).IsTypeOf<SystemMessage>();
+        // Should NOT be a TaskStartedMessage
+        await Assert.That(msg is TaskStartedMessage).IsFalse();
+    }
 }

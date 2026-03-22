@@ -90,10 +90,78 @@ internal sealed class MessageConverter : JsonConverter<Message>
 
     private static SystemMessage ParseSystemMessage(JsonElement root)
     {
-        return new SystemMessage
+        var subtype = root.GetProperty("subtype").GetString()!;
+
+        return subtype switch
         {
-            Subtype = root.GetProperty("subtype").GetString()!,
-            Data = root.Clone()
+            "task_started" => ParseTaskStartedMessage(root, subtype),
+            "task_progress" => ParseTaskProgressMessage(root, subtype),
+            "task_notification" => ParseTaskNotificationMessage(root, subtype),
+            _ => new SystemMessage { Subtype = subtype, Data = root.Clone() }
+        };
+    }
+
+    private static TaskStartedMessage ParseTaskStartedMessage(JsonElement root, string subtype)
+    {
+        var data = root.GetProperty("data");
+        return new TaskStartedMessage
+        {
+            Subtype = subtype,
+            Data = root.Clone(),
+            TaskId = data.GetProperty("task_id").GetString()!,
+            Description = data.GetProperty("description").GetString()!,
+            Uuid = data.GetProperty("uuid").GetString()!,
+            SessionId = data.GetProperty("session_id").GetString()!,
+            ToolUseId = data.TryGetProperty("tool_use_id", out var tui) ? tui.GetString() : null,
+            TaskType = data.TryGetProperty("task_type", out var tt) ? tt.GetString() : null
+        };
+    }
+
+    private static TaskProgressMessage ParseTaskProgressMessage(JsonElement root, string subtype)
+    {
+        var data = root.GetProperty("data");
+        var usage = data.GetProperty("usage");
+        return new TaskProgressMessage
+        {
+            Subtype = subtype,
+            Data = root.Clone(),
+            TaskId = data.GetProperty("task_id").GetString()!,
+            Description = data.GetProperty("description").GetString()!,
+            Uuid = data.GetProperty("uuid").GetString()!,
+            SessionId = data.GetProperty("session_id").GetString()!,
+            Usage = new TaskUsage(
+                usage.GetProperty("total_tokens").GetInt32(),
+                usage.GetProperty("tool_uses").GetInt32(),
+                usage.GetProperty("duration_ms").GetInt32()),
+            ToolUseId = data.TryGetProperty("tool_use_id", out var tui) ? tui.GetString() : null,
+            LastToolName = data.TryGetProperty("last_tool_name", out var ltn) ? ltn.GetString() : null
+        };
+    }
+
+    private static TaskNotificationMessage ParseTaskNotificationMessage(JsonElement root, string subtype)
+    {
+        var data = root.GetProperty("data");
+        TaskUsage? usage = null;
+        if (data.TryGetProperty("usage", out var usageEl))
+        {
+            usage = new TaskUsage(
+                usageEl.GetProperty("total_tokens").GetInt32(),
+                usageEl.GetProperty("tool_uses").GetInt32(),
+                usageEl.GetProperty("duration_ms").GetInt32());
+        }
+
+        return new TaskNotificationMessage
+        {
+            Subtype = subtype,
+            Data = root.Clone(),
+            TaskId = data.GetProperty("task_id").GetString()!,
+            Status = data.GetProperty("status").GetString()!,
+            OutputFile = data.GetProperty("output_file").GetString()!,
+            Summary = data.GetProperty("summary").GetString()!,
+            Uuid = data.GetProperty("uuid").GetString()!,
+            SessionId = data.GetProperty("session_id").GetString()!,
+            ToolUseId = data.TryGetProperty("tool_use_id", out var tui) ? tui.GetString() : null,
+            Usage = usage
         };
     }
 
