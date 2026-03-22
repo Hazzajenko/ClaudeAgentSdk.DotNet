@@ -7,6 +7,26 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- Session utilities: `Sessions.List()`, `Sessions.GetInfo()`, `Sessions.GetMessages()`, `Sessions.Rename()`, `Sessions.Tag()` — reads JSONL session files directly from `~/.claude/projects/` with conversation chain reconstruction
+- Bidirectional control protocol: `ControlProtocolHandler` with request/response tracking, background message reader using `Channel<Message>`, and initialize handshake on connect
+- Custom agents: `AgentDefinition` type with `AgentModel` enum, sent to CLI via initialize request (not CLI args)
+- Runtime control methods on `ClaudeClient`: `InterruptAsync()`, `SetPermissionModeAsync()`, `SetModelAsync()`, `RewindFilesAsync()`, `ReconnectMcpServerAsync()`, `ToggleMcpServerAsync()`, `StopTaskAsync()`, `GetMcpStatusAsync()`
+- `McpStatusParser` for typed `McpStatusResponse` from `GetMcpStatusAsync()`
+- Hook system: `HookEvent` enum, `HookCallback` delegate, `HookMatcher` record — hooks registered with callback IDs in initialize request, dispatched via control protocol
+- Permission callback: `CanUseToolCallback` delegate with `PermissionResultAllow`/`PermissionResultDeny` — automatically adds `--permission-prompt-tool stdio` CLI arg
+- `ClaudeClient.ReceiveMessagesAsync()` for continuous message monitoring
+
+### Changed
+
+- Refactor `ClaudeClient` to use background `Task` + `Channel<Message>` for message routing — control messages intercepted before reaching user code
+- `ClaudeClient` now sends initialize handshake after connect, enabling agents/hooks/permissions
+
+### Fixed
+
+- Fix GitHub release notes stripping backticked content by using `--notes-file` instead of shell-interpolated `--notes`
+
 ## [0.0.4] - 2026-03-22
 
 ### Added
