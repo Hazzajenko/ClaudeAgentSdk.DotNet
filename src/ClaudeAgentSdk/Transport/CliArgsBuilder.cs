@@ -144,4 +144,24 @@ internal static class CliArgsBuilder
 
         return args;
     }
+
+    public static Dictionary<string, string> BuildEnvironmentVariables(ClaudeClientOptions options)
+    {
+        var envVars = new Dictionary<string, string>();
+
+        if (options.EnvironmentVariables is not null)
+        {
+            foreach (var (key, value) in options.EnvironmentVariables)
+            {
+                envVars[key] = value;
+            }
+        }
+
+        if (options.EnableFileCheckpointing)
+        {
+            envVars["CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING"] = "true";
+        }
+
+        return envVars;
+    }
 }

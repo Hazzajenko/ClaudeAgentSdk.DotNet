@@ -22,15 +22,7 @@ public static class Claude
         options ??= new ClaudeClientOptions();
         string cliPath = CliFinder.Find(options.CliPath);
         var args = CliArgsBuilder.Build(options);
-
-        var envVars = new Dictionary<string, string>();
-        if (options.EnvironmentVariables is not null)
-        {
-            foreach (var (key, value) in options.EnvironmentVariables)
-            {
-                envVars[key] = value;
-            }
-        }
+        var envVars = CliArgsBuilder.BuildEnvironmentVariables(options);
 
         var transport = new CliTransport(
             cliPath,

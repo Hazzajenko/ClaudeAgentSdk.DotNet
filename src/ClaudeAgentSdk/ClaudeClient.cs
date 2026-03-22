@@ -70,15 +70,7 @@ public sealed class ClaudeClient : IAsyncDisposable
     {
         string cliPath = CliFinder.Find(_options.CliPath);
         var args = CliArgsBuilder.Build(_options);
-
-        var envVars = new Dictionary<string, string>();
-        if (_options.EnvironmentVariables is not null)
-        {
-            foreach (var (key, value) in _options.EnvironmentVariables)
-            {
-                envVars[key] = value;
-            }
-        }
+        var envVars = CliArgsBuilder.BuildEnvironmentVariables(_options);
 
         _transport = new CliTransport(
             cliPath,

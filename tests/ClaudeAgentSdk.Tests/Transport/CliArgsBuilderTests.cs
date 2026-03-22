@@ -235,4 +235,36 @@ public class CliArgsBuilderTests
 
         await Assert.That(args).DoesNotContain("--betas");
     }
+
+    [Test]
+    public async Task EnableFileCheckpointing_SetsEnvVar()
+    {
+        var env = CliArgsBuilder.BuildEnvironmentVariables(new ClaudeClientOptions
+        {
+            EnableFileCheckpointing = true
+        });
+
+        await Assert.That(env).ContainsKey("CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING");
+        await Assert.That(env["CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING"]).IsEqualTo("true");
+    }
+
+    [Test]
+    public async Task EnableFileCheckpointing_Default_NoEnvVar()
+    {
+        var env = CliArgsBuilder.BuildEnvironmentVariables(new ClaudeClientOptions());
+
+        await Assert.That(env).DoesNotContainKey("CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING");
+    }
+
+    [Test]
+    public async Task BuildEnvironmentVariables_MergesUserEnvVars()
+    {
+        var env = CliArgsBuilder.BuildEnvironmentVariables(new ClaudeClientOptions
+        {
+            EnvironmentVariables = new Dictionary<string, string> { ["MY_VAR"] = "hello" }
+        });
+
+        await Assert.That(env).ContainsKey("MY_VAR");
+        await Assert.That(env["MY_VAR"]).IsEqualTo("hello");
+    }
 }
