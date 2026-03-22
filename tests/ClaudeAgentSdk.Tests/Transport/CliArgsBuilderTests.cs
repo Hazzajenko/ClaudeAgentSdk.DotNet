@@ -321,4 +321,59 @@ public class CliArgsBuilderTests
 
         await Assert.That(args).DoesNotContain("--plugin-dir");
     }
+
+    [Test]
+    public async Task Sandbox_AddsSettingsJsonArg()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions
+        {
+            Sandbox = new SandboxSettings
+            {
+                Enabled = true,
+                AutoAllowBashIfSandboxed = true,
+                ExcludedCommands = ["docker", "git"]
+            }
+        });
+
+        int idx = args.IndexOf("--settings");
+        await Assert.That(idx).IsGreaterThanOrEqualTo(0);
+
+        string json = args[idx + 1];
+        await Assert.That(json).Contains("\"sandbox\"");
+        await Assert.That(json).Contains("\"enabled\":true");
+        await Assert.That(json).Contains("\"autoAllowBashIfSandboxed\":true");
+        await Assert.That(json).Contains("\"excludedCommands\"");
+        await Assert.That(json).Contains("\"docker\"");
+    }
+
+    [Test]
+    public async Task Sandbox_Default_OmitsSettingsArg()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions());
+
+        await Assert.That(args).DoesNotContain("--settings");
+    }
+
+    [Test]
+    public async Task Sandbox_WithNetwork_IncludesNetworkConfig()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions
+        {
+            Sandbox = new SandboxSettings
+            {
+                Enabled = true,
+                Network = new SandboxNetworkConfig
+                {
+                    AllowLocalBinding = true,
+                    AllowUnixSockets = ["/var/run/docker.sock"]
+                }
+            }
+        });
+
+        int idx = args.IndexOf("--settings");
+        string json = args[idx + 1];
+        await Assert.That(json).Contains("\"network\"");
+        await Assert.That(json).Contains("\"allowLocalBinding\":true");
+        await Assert.That(json).Contains("/var/run/docker.sock");
+    }
 }

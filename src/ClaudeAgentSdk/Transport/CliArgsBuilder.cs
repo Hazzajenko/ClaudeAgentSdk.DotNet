@@ -1,3 +1,6 @@
+using System.Text;
+using System.Text.Json;
+
 namespace ClaudeAgentSdk.Transport;
 
 /// <summary>
@@ -138,6 +141,12 @@ internal static class CliArgsBuilder
             });
         }
 
+        if (options.Sandbox is not null)
+        {
+            args.Add("--settings");
+            args.Add(SerializeSandboxSettings(options.Sandbox));
+        }
+
         if (options.Plugins is { Count: > 0 })
         {
             foreach (var plugin in options.Plugins)
@@ -156,6 +165,78 @@ internal static class CliArgsBuilder
             : "");
 
         return args;
+    }
+
+    private static string SerializeSandboxSettings(SandboxSettings sandbox)
+    {
+        using var stream = new MemoryStream();
+        using (var w = new Utf8JsonWriter(stream))
+        {
+            w.WriteStartObject();
+            w.WriteStartObject("sandbox");
+
+            if (sandbox.Enabled is { } enabled)
+                w.WriteBoolean("enabled", enabled);
+            if (sandbox.AutoAllowBashIfSandboxed is { } autoAllow)
+                w.WriteBoolean("autoAllowBashIfSandboxed", autoAllow);
+            if (sandbox.AllowUnsandboxedCommands is { } allowUnsandboxed)
+                w.WriteBoolean("allowUnsandboxedCommands", allowUnsandboxed);
+            if (sandbox.EnableWeakerNestedSandbox is { } weakerNested)
+                w.WriteBoolean("enableWeakerNestedSandbox", weakerNested);
+
+            if (sandbox.ExcludedCommands is { Count: > 0 })
+            {
+                w.WriteStartArray("excludedCommands");
+                foreach (string cmd in sandbox.ExcludedCommands)
+                    w.WriteStringValue(cmd);
+                w.WriteEndArray();
+            }
+
+            if (sandbox.Network is { } network)
+            {
+                w.WriteStartObject("network");
+                if (network.AllowLocalBinding is { } allowLocal)
+                    w.WriteBoolean("allowLocalBinding", allowLocal);
+                if (network.AllowAllUnixSockets is { } allowAll)
+                    w.WriteBoolean("allowAllUnixSockets", allowAll);
+                if (network.HttpProxyPort is { } httpProxy)
+                    w.WriteNumber("httpProxyPort", httpProxy);
+                if (network.SocksProxyPort is { } socksProxy)
+                    w.WriteNumber("socksProxyPort", socksProxy);
+                if (network.AllowUnixSockets is { Count: > 0 })
+                {
+                    w.WriteStartArray("allowUnixSockets");
+                    foreach (string sock in network.AllowUnixSockets)
+                        w.WriteStringValue(sock);
+                    w.WriteEndArray();
+                }
+                w.WriteEndObject();
+            }
+
+            if (sandbox.IgnoreViolations is { } violations)
+            {
+                w.WriteStartObject("ignoreViolations");
+                if (violations.File is { Count: > 0 })
+                {
+                    w.WriteStartArray("file");
+                    foreach (string f in violations.File)
+                        w.WriteStringValue(f);
+                    w.WriteEndArray();
+                }
+                if (violations.Network is { Count: > 0 })
+                {
+                    w.WriteStartArray("network");
+                    foreach (string n in violations.Network)
+                        w.WriteStringValue(n);
+                    w.WriteEndArray();
+                }
+                w.WriteEndObject();
+            }
+
+            w.WriteEndObject(); // sandbox
+            w.WriteEndObject(); // root
+        }
+        return Encoding.UTF8.GetString(stream.ToArray());
     }
 
     public static Dictionary<string, string> BuildEnvironmentVariables(ClaudeClientOptions options)
