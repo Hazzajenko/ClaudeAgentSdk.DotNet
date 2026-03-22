@@ -105,6 +105,56 @@ public sealed class ClaudeClient : IAsyncDisposable
         }
     }
 
+    public async Task InterruptAsync(CancellationToken cancellationToken = default) =>
+        await SendSimpleControlRequestAsync("""{"subtype":"interrupt"}""", cancellationToken);
+
+    public async Task SetPermissionModeAsync(PermissionMode mode, CancellationToken cancellationToken = default)
+    {
+        string modeStr = mode switch
+        {
+            PermissionMode.AcceptEdits => "acceptEdits",
+            PermissionMode.Plan => "plan",
+            PermissionMode.BypassPermissions => "bypassPermissions",
+            _ => "default"
+        };
+        await SendSimpleControlRequestAsync($$$"""{"subtype":"set_permission_mode","mode":"{{{modeStr}}}"}""", cancellationToken);
+    }
+
+    public async Task SetModelAsync(string? model, CancellationToken cancellationToken = default)
+    {
+        string json = model is not null
+            ? $$$"""{"subtype":"set_model","model":"{{{model}}}"}"""
+            : """{"subtype":"set_model","model":null}""";
+        await SendSimpleControlRequestAsync(json, cancellationToken);
+    }
+
+    public async Task RewindFilesAsync(string userMessageId, CancellationToken cancellationToken = default) =>
+        await SendSimpleControlRequestAsync($$$"""{"subtype":"rewind_files","user_message_id":"{{{userMessageId}}}"}""", cancellationToken);
+
+    public async Task ReconnectMcpServerAsync(string serverName, CancellationToken cancellationToken = default) =>
+        await SendSimpleControlRequestAsync($$$"""{"subtype":"mcp_reconnect","serverName":"{{{serverName}}}"}""", cancellationToken);
+
+    public async Task ToggleMcpServerAsync(string serverName, bool enabled, CancellationToken cancellationToken = default)
+    {
+        string enabledStr = enabled ? "true" : "false";
+        await SendSimpleControlRequestAsync($$$"""{"subtype":"mcp_toggle","serverName":"{{{serverName}}}","enabled":{{{enabledStr}}}}""", cancellationToken);
+    }
+
+    public async Task StopTaskAsync(string taskId, CancellationToken cancellationToken = default) =>
+        await SendSimpleControlRequestAsync($$$"""{"subtype":"stop_task","task_id":"{{{taskId}}}"}""", cancellationToken);
+
+    public async Task<JsonElement> GetMcpStatusAsync(CancellationToken cancellationToken = default) =>
+        await SendSimpleControlRequestAsync("""{"subtype":"mcp_status"}""", cancellationToken);
+
+    private async Task<JsonElement> SendSimpleControlRequestAsync(string requestJson, CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_controlHandler is null) throw new InvalidOperationException("Not connected");
+
+        using var doc = JsonDocument.Parse(requestJson);
+        return await _controlHandler.SendControlRequestAsync(doc.RootElement.Clone(), cancellationToken: cancellationToken);
+    }
+
     internal ControlProtocolHandler? ControlHandler => _controlHandler;
 
     private async Task ConnectAsync(CancellationToken cancellationToken)
