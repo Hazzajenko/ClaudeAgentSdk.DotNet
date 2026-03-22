@@ -7,6 +7,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.0.3] - 2026-03-22
+
 ### Changed
 
 - Rename NuGet package to `ClaudeAgentSdk.DotNet` (`Claude.*` prefix is reserved on NuGet)
