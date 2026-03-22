@@ -36,6 +36,8 @@ internal sealed class MessageConverter : JsonConverter<Message>
             "result" => ParseResultMessage(root),
             "stream_event" => ParseStreamEvent(root),
             "rate_limit_event" => ParseRateLimitEvent(root),
+            "control_response" => new ControlResponseMessage(root.Clone()),
+            "control_request" => new ControlRequestMessage(root.Clone()),
             var unknown => throw new JsonException($"Unknown message type: '{unknown}'")
         };
     }

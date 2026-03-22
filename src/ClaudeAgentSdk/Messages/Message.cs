@@ -72,6 +72,10 @@ public sealed record RateLimitEvent : Message
     public required string SessionId { get; init; }
 }
 
+// Internal control protocol messages — not yielded to public API consumers
+internal sealed record ControlResponseMessage(JsonElement RawElement) : Message;
+internal sealed record ControlRequestMessage(JsonElement RawElement) : Message;
+
 public readonly record struct TaskUsage(int TotalTokens, int ToolUses, int DurationMs);
 
 public sealed record TaskStartedMessage : SystemMessage
