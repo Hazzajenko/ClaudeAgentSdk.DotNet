@@ -3,7 +3,7 @@
   <PropertyGroup>
     <IsAotCompatible>true</IsAotCompatible>
     <IsPackable>true</IsPackable>
-    <PackageId>ClaudeCodeAgentSDK</PackageId>
+    <PackageId>Claude.AgentSdk</PackageId>
     <Description>C# wrapper for the Claude Code CLI agent SDK</Description>
     <PackageTags>claude;ai;agent;sdk;llm;anthropic</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
