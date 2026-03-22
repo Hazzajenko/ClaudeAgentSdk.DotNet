@@ -102,6 +102,12 @@ internal static class CliArgsBuilder
             });
         }
 
+        if (options.CanUseTool is not null)
+        {
+            args.Add("--permission-prompt-tool");
+            args.Add("stdio");
+        }
+
         if (options.ContinueConversation)
         {
             args.Add("--continue");

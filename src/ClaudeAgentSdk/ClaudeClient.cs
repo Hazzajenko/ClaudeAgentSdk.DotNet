@@ -6,6 +6,7 @@ using ClaudeAgentSdk.Agents;
 using ClaudeAgentSdk.Control;
 using ClaudeAgentSdk.Hooks;
 using ClaudeAgentSdk.Messages;
+using ClaudeAgentSdk.Permissions;
 using ClaudeAgentSdk.Transport;
 
 namespace ClaudeAgentSdk;
@@ -161,6 +162,50 @@ public sealed class ClaudeClient : IAsyncDisposable
         return await _controlHandler.SendControlRequestAsync(doc.RootElement.Clone(), cancellationToken: cancellationToken);
     }
 
+    private async Task<JsonElement> HandleCanUseToolAsync(JsonElement request, CancellationToken ct)
+    {
+        string toolName = request.TryGetProperty("tool_name", out var tn) ? tn.GetString() ?? "" : "";
+        JsonElement input = request.TryGetProperty("input", out var inp) ? inp.Clone() : default;
+
+        var suggestions = new List<JsonElement>();
+        if (request.TryGetProperty("permission_suggestions", out var ps) && ps.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var s in ps.EnumerateArray())
+                suggestions.Add(s.Clone());
+        }
+
+        var context = new ToolPermissionContext { Suggestions = suggestions };
+        var result = await _options.CanUseTool!(toolName, input, context, ct);
+
+        using var stream = new MemoryStream();
+        using (var w = new Utf8JsonWriter(stream))
+        {
+            w.WriteStartObject();
+            switch (result)
+            {
+                case PermissionResultAllow allow:
+                    w.WriteString("behavior", "allow");
+                    w.WritePropertyName("updatedInput");
+                    if (allow.UpdatedInput is { } updatedInput)
+                        updatedInput.WriteTo(w);
+                    else
+                        input.WriteTo(w);
+                    break;
+
+                case PermissionResultDeny deny:
+                    w.WriteString("behavior", "deny");
+                    w.WriteString("message", deny.Message);
+                    if (deny.Interrupt)
+                        w.WriteBoolean("interrupt", true);
+                    break;
+            }
+            w.WriteEndObject();
+        }
+
+        using var doc = JsonDocument.Parse(Encoding.UTF8.GetString(stream.ToArray()));
+        return doc.RootElement.Clone();
+    }
+
     private async Task<JsonElement> HandleHookCallbackAsync(
         string callbackId, JsonElement input, string? toolUseId, CancellationToken ct)
     {
@@ -196,6 +241,10 @@ public sealed class ClaudeClient : IAsyncDisposable
 
         // Wire up hook callback dispatch
         _controlHandler.OnHookCallback = HandleHookCallbackAsync;
+
+        // Wire up can_use_tool dispatch
+        if (_options.CanUseTool is not null)
+            _controlHandler.OnCanUseTool = HandleCanUseToolAsync;
 
         // Start background reader
         _readerCts = new CancellationTokenSource();

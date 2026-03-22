@@ -2,6 +2,7 @@ using System.Text.Json;
 using ClaudeAgentSdk.Agents;
 using ClaudeAgentSdk.Hooks;
 using ClaudeAgentSdk.Mcp;
+using ClaudeAgentSdk.Permissions;
 
 namespace ClaudeAgentSdk;
 
@@ -39,6 +40,7 @@ public sealed record ClaudeClientOptions
     public IReadOnlyDictionary<string, McpServerConfig>? McpServers { get; init; }
     public IReadOnlyDictionary<string, AgentDefinition>? Agents { get; init; }
     public IReadOnlyDictionary<HookEvent, IReadOnlyList<HookMatcher>>? Hooks { get; init; }
+    public CanUseToolCallback? CanUseTool { get; init; }
     public IReadOnlyDictionary<string, string>? EnvironmentVariables { get; init; }
     public Action<string>? StderrCallback { get; init; }
 }
