@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using ClaudeAgentSdk.Messages;
 using ClaudeAgentSdk.Transport;
 
@@ -78,6 +79,27 @@ public static class Claude
         }
 
         return resultText ?? "";
+    }
+
+    /// <summary>
+    /// Send a query and return a deserialized structured output of type <typeparamref name="T"/>.
+    /// Requires <see cref="ClaudeClientOptions.OutputFormatSchema"/> to be set.
+    /// </summary>
+    public static async Task<T?> QueryAsync<T>(
+        string prompt,
+        JsonTypeInfo<T> jsonTypeInfo,
+        ClaudeClientOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        await foreach (var message in QueryAsync(prompt, options, cancellationToken))
+        {
+            if (message is ResultMessage { StructuredOutput: { } output })
+            {
+                return output.Deserialize(jsonTypeInfo);
+            }
+        }
+
+        return default;
     }
 
     internal static string BuildUserMessageJson(string prompt)

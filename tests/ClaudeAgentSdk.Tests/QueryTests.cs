@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using ClaudeAgentSdk.Messages;
 using ClaudeAgentSdk.Transport;
 
@@ -91,6 +93,51 @@ public class QueryTests
         await Assert.That(toolUse!.Name).IsEqualTo("Read");
     }
 
+    [Test]
+    public async Task QueryFlow_StructuredOutput_DeserializesToType()
+    {
+        var input = """
+            {"type":"assistant","message":{"content":[{"type":"text","text":"{}"}],"model":"m"}}
+            {"type":"result","subtype":"success","duration_ms":100,"duration_api_ms":90,"is_error":false,"num_turns":1,"session_id":"s1","structured_output":{"name":"Alice","age":30}}
+            """;
+
+        using var reader = new StringReader(input);
+        PersonDto? result = null;
+
+        await foreach (var message in JsonStreamReader.ReadAllAsync(reader))
+        {
+            if (message is ResultMessage { StructuredOutput: { } output })
+            {
+                result = output.Deserialize(TestJsonContext.Default.PersonDto);
+            }
+        }
+
+        await Assert.That(result).IsNotNull();
+        await Assert.That(result!.Name).IsEqualTo("Alice");
+        await Assert.That(result.Age).IsEqualTo(30);
+    }
+
+    [Test]
+    public async Task QueryFlow_NoStructuredOutput_ReturnsNull()
+    {
+        var input = """
+            {"type":"result","subtype":"success","duration_ms":0,"duration_api_ms":0,"is_error":false,"num_turns":0,"session_id":"s1"}
+            """;
+
+        using var reader = new StringReader(input);
+        PersonDto? result = null;
+
+        await foreach (var message in JsonStreamReader.ReadAllAsync(reader))
+        {
+            if (message is ResultMessage { StructuredOutput: { } output })
+            {
+                result = output.Deserialize(TestJsonContext.Default.PersonDto);
+            }
+        }
+
+        await Assert.That(result).IsNull();
+    }
+
     /// <summary>
     /// Simulates QueryTextAsync logic: reads all messages, returns final text.
     /// </summary>
@@ -121,3 +168,14 @@ public class QueryTests
         return resultText ?? "";
     }
 }
+
+public sealed record PersonDto
+{
+    [JsonPropertyName("name")]
+    public string Name { get; init; } = "";
+    [JsonPropertyName("age")]
+    public int Age { get; init; }
+}
+
+[JsonSerializable(typeof(PersonDto))]
+internal sealed partial class TestJsonContext : JsonSerializerContext;
