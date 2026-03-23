@@ -7,6 +7,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.0.6] - 2026-03-23
+
 ### Added
 
 - In-process SDK MCP server: define tools that run inside your application with zero IPC overhead via `McpSdkServerConfig.Create()` and `SdkMcpTool.Create()` — the biggest feature gap vs the Python SDK
