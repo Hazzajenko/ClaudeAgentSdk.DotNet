@@ -7,6 +7,18 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- In-process SDK MCP server: define tools that run inside your application with zero IPC overhead via `McpSdkServerConfig.Create()` and `SdkMcpTool.Create()` — the biggest feature gap vs the Python SDK
+- `McpJsonSchema` static builder for constructing AOT-safe JSON Schema input definitions (`Object`, `String`, `Number`, `Integer`, `Boolean`)
+- `McpToolResult` hierarchy for tool responses (`McpToolResult.Text()`, `McpToolResult.Error()`)
+- `SdkMcpRequestHandler` routes MCP JSONRPC messages (`initialize`, `tools/list`, `tools/call`) to in-process tool handlers via the control protocol `mcp_message` subtype
+
+### Changed
+
+- `McpConfigSerializer` now skips SDK server configs (they run in-process, not via CLI `--mcp-config`)
+- `CliArgsBuilder` omits `--mcp-config` when only SDK servers are configured
+
 ## [0.0.5] - 2026-03-22
 
 ### Added
