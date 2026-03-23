@@ -60,7 +60,43 @@ public static class Claude
 
             if (message is ResultMessage)
                 yield break;
+
+            // In stream-json mode, the CLI waits for tool_result on stdin after emitting tool_use
+            if (message is AssistantMessage assistant)
+            {
+                foreach (var block in assistant.Content)
+                {
+                    if (block is ToolUseBlock toolUse)
+                    {
+                        await transport.WriteAsync(
+                            BuildToolResultJson(toolUse.Id), cancellationToken);
+                    }
+                }
+            }
         }
+    }
+
+    internal static string BuildToolResultJson(string toolUseId)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("type", "user");
+            writer.WriteStartObject("message");
+            writer.WriteStartArray("content");
+            writer.WriteStartObject();
+            writer.WriteString("type", "tool_result");
+            writer.WriteString("tool_use_id", toolUseId);
+            writer.WriteString("content", "Tool result provided");
+            writer.WriteEndObject();
+            writer.WriteEndArray();
+            writer.WriteEndObject();
+            writer.WriteString("parent_tool_use_id", toolUseId);
+            writer.WriteString("session_id", "default");
+            writer.WriteEndObject();
+        }
+        return System.Text.Encoding.UTF8.GetString(stream.ToArray());
     }
 
     /// <summary>
