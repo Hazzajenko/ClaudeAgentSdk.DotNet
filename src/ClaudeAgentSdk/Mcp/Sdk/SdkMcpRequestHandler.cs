@@ -1,0 +1,206 @@
+using System.Text;
+using System.Text.Json;
+
+namespace ClaudeAgentSdk.Mcp.Sdk;
+
+/// <summary>
+/// Routes MCP JSONRPC messages to in-process SDK server tools.
+/// </summary>
+internal sealed class SdkMcpRequestHandler
+{
+    private readonly McpSdkServerConfig _config;
+    private readonly Dictionary<string, SdkMcpTool> _toolMap;
+
+    public SdkMcpRequestHandler(McpSdkServerConfig config)
+    {
+        _config = config;
+        _toolMap = config.Tools.ToDictionary(t => t.Name);
+    }
+
+    public async Task<JsonElement> HandleAsync(JsonElement message, CancellationToken cancellationToken)
+    {
+        string? method = message.TryGetProperty("method", out var m) ? m.GetString() : null;
+        int? id = message.TryGetProperty("id", out var idProp) ? idProp.GetInt32() : null;
+
+        try
+        {
+            return method switch
+            {
+                "initialize" => BuildInitializeResponse(id),
+                "tools/list" => BuildToolsListResponse(id),
+                "tools/call" => await HandleToolCallAsync(message, id, cancellationToken),
+                "notifications/initialized" => BuildEmptyResult(id),
+                _ => BuildMethodNotFoundError(id, method ?? "null")
+            };
+        }
+        catch (Exception ex)
+        {
+            return BuildInternalError(id, ex.Message);
+        }
+    }
+
+    private JsonElement BuildInitializeResponse(int? id)
+    {
+        using var stream = new MemoryStream();
+        using (var w = new Utf8JsonWriter(stream))
+        {
+            w.WriteStartObject();
+            w.WriteString("jsonrpc", "2.0");
+            WriteId(w, id);
+            w.WriteStartObject("result");
+            w.WriteString("protocolVersion", "2024-11-05");
+            w.WriteStartObject("capabilities");
+            w.WriteStartObject("tools");
+            w.WriteEndObject();
+            w.WriteEndObject(); // capabilities
+            w.WriteStartObject("serverInfo");
+            w.WriteString("name", _config.Name);
+            w.WriteString("version", _config.Version);
+            w.WriteEndObject(); // serverInfo
+            w.WriteEndObject(); // result
+            w.WriteEndObject();
+        }
+        return ParseElement(stream);
+    }
+
+    private JsonElement BuildToolsListResponse(int? id)
+    {
+        using var stream = new MemoryStream();
+        using (var w = new Utf8JsonWriter(stream))
+        {
+            w.WriteStartObject();
+            w.WriteString("jsonrpc", "2.0");
+            WriteId(w, id);
+            w.WriteStartObject("result");
+            w.WriteStartArray("tools");
+
+            foreach (var tool in _config.Tools)
+            {
+                w.WriteStartObject();
+                w.WriteString("name", tool.Name);
+                w.WriteString("description", tool.Description);
+                w.WritePropertyName("inputSchema");
+                tool.InputSchema.WriteTo(w);
+
+                if (tool.Annotations is { } annotations)
+                {
+                    w.WriteStartObject("annotations");
+                    if (annotations.ReadOnly is { } readOnly)
+                        w.WriteBoolean("readOnly", readOnly);
+                    if (annotations.Destructive is { } destructive)
+                        w.WriteBoolean("destructive", destructive);
+                    if (annotations.OpenWorld is { } openWorld)
+                        w.WriteBoolean("openWorld", openWorld);
+                    w.WriteEndObject();
+                }
+
+                w.WriteEndObject();
+            }
+
+            w.WriteEndArray();
+            w.WriteEndObject(); // result
+            w.WriteEndObject();
+        }
+        return ParseElement(stream);
+    }
+
+    private async Task<JsonElement> HandleToolCallAsync(
+        JsonElement message, int? id, CancellationToken cancellationToken)
+    {
+        var @params = message.GetProperty("params");
+        string toolName = @params.GetProperty("name").GetString()!;
+        JsonElement arguments = @params.TryGetProperty("arguments", out var args)
+            ? args : default;
+
+        if (!_toolMap.TryGetValue(toolName, out var tool))
+            return BuildInternalError(id, $"Tool '{toolName}' not found");
+
+        McpToolResult result;
+        try
+        {
+            result = await tool.Handler(arguments, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            return BuildInternalError(id, ex.Message);
+        }
+
+        using var stream = new MemoryStream();
+        using (var w = new Utf8JsonWriter(stream))
+        {
+            w.WriteStartObject();
+            w.WriteString("jsonrpc", "2.0");
+            WriteId(w, id);
+            w.WriteStartObject("result");
+            w.WriteStartArray("content");
+            result.WriteContentTo(w);
+            w.WriteEndArray();
+            if (result.IsError)
+                w.WriteBoolean("is_error", true);
+            w.WriteEndObject(); // result
+            w.WriteEndObject();
+        }
+        return ParseElement(stream);
+    }
+
+    private static JsonElement BuildEmptyResult(int? id)
+    {
+        using var stream = new MemoryStream();
+        using (var w = new Utf8JsonWriter(stream))
+        {
+            w.WriteStartObject();
+            w.WriteString("jsonrpc", "2.0");
+            WriteId(w, id);
+            w.WriteStartObject("result");
+            w.WriteEndObject();
+            w.WriteEndObject();
+        }
+        return ParseElement(stream);
+    }
+
+    private static JsonElement BuildMethodNotFoundError(int? id, string method)
+    {
+        using var stream = new MemoryStream();
+        using (var w = new Utf8JsonWriter(stream))
+        {
+            w.WriteStartObject();
+            w.WriteString("jsonrpc", "2.0");
+            WriteId(w, id);
+            w.WriteStartObject("error");
+            w.WriteNumber("code", -32601);
+            w.WriteString("message", $"Method '{method}' not found");
+            w.WriteEndObject();
+            w.WriteEndObject();
+        }
+        return ParseElement(stream);
+    }
+
+    private static JsonElement BuildInternalError(int? id, string message)
+    {
+        using var stream = new MemoryStream();
+        using (var w = new Utf8JsonWriter(stream))
+        {
+            w.WriteStartObject();
+            w.WriteString("jsonrpc", "2.0");
+            WriteId(w, id);
+            w.WriteStartObject("error");
+            w.WriteNumber("code", -32603);
+            w.WriteString("message", message);
+            w.WriteEndObject();
+            w.WriteEndObject();
+        }
+        return ParseElement(stream);
+    }
+
+    private static void WriteId(Utf8JsonWriter w, int? id)
+    {
+        if (id is { } value)
+            w.WriteNumber("id", value);
+    }
+
+    private static JsonElement ParseElement(MemoryStream stream)
+    {
+        using var doc = JsonDocument.Parse(Encoding.UTF8.GetString(stream.ToArray()));
+        return doc.RootElement.Clone();
+    }
+}
