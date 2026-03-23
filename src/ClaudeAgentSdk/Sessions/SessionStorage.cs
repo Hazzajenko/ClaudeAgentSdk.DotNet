@@ -239,7 +239,11 @@ internal static partial class SessionStorage
             if (line.Contains("\"isCompactSummary\":true") || line.Contains("\"isCompactSummary\": true")) continue;
 
             JsonElement entry;
-            try { entry = JsonDocument.Parse(line).RootElement; }
+            try
+            {
+                using var lineDoc = JsonDocument.Parse(line);
+                entry = lineDoc.RootElement.Clone();
+            }
             catch { continue; }
 
             if (entry.ValueKind != JsonValueKind.Object) continue;

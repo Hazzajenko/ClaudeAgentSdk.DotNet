@@ -22,18 +22,20 @@ internal static class SessionMessageParser
             string trimmed = line.Trim();
             if (string.IsNullOrEmpty(trimmed)) continue;
 
-            JsonDocument doc;
-            try { doc = JsonDocument.Parse(trimmed); }
+            JsonElement root;
+            try
+            {
+                using var doc = JsonDocument.Parse(trimmed);
+                root = doc.RootElement.Clone();
+            }
             catch { continue; }
-
-            var root = doc.RootElement;
             if (root.ValueKind != JsonValueKind.Object) continue;
             if (!root.TryGetProperty("type", out var typeProp)) continue;
             string? entryType = typeProp.GetString();
             if (entryType is null || !TranscriptEntryTypes.Contains(entryType)) continue;
             if (!root.TryGetProperty("uuid", out var uuidProp) || uuidProp.ValueKind != JsonValueKind.String) continue;
 
-            entries.Add(root.Clone());
+            entries.Add(root);
         }
 
         return entries;
