@@ -36,15 +36,28 @@ public static class Claude
         {
             await transport.ConnectAsync(cancellationToken);
 
-            // Send the user prompt via stdin as a JSON message (AOT-safe manual serialization)
-            string json = BuildUserMessageJson(prompt);
-            await transport.WriteAsync(json, cancellationToken);
-            await transport.EndInputAsync(cancellationToken);
-
-            await foreach (var message in transport.ReadMessagesAsync(cancellationToken))
+            await foreach (var message in QueryCoreAsync(prompt, transport, cancellationToken))
             {
                 yield return message;
             }
+        }
+    }
+
+    /// <summary>
+    /// Core query logic extracted for testability. Sends prompt and streams messages.
+    /// </summary>
+    internal static async IAsyncEnumerable<Message> QueryCoreAsync(
+        string prompt,
+        ITransport transport,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        string json = BuildUserMessageJson(prompt);
+        await transport.WriteAsync(json, cancellationToken);
+        await transport.EndInputAsync(cancellationToken);
+
+        await foreach (var message in transport.ReadMessagesAsync(cancellationToken))
+        {
+            yield return message;
         }
     }
 
