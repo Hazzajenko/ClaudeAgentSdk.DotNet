@@ -1,4 +1,5 @@
 using ClaudeAgentSdk.Mcp;
+using ClaudeAgentSdk.Mcp.Sdk;
 using ClaudeAgentSdk.Transport;
 
 namespace ClaudeAgentSdk.Tests.Mcp;
@@ -112,5 +113,80 @@ public class McpConfigSerializerTests
         var args = CliArgsBuilder.Build(new ClaudeClientOptions());
 
         await Assert.That(args).DoesNotContain("--mcp-config");
+    }
+
+    [Test]
+    public async Task Serializer_SkipsSdkServers()
+    {
+        var servers = new Dictionary<string, McpServerConfig>
+        {
+            ["external"] = new McpStdioServerConfig(Command: "cmd"),
+            ["in-process"] = McpSdkServerConfig.Create("in-process", [])
+        };
+
+        string json = McpConfigSerializer.Serialize(servers);
+
+        await Assert.That(json).Contains("\"external\"");
+        await Assert.That(json).DoesNotContain("\"in-process\"");
+    }
+
+    [Test]
+    public async Task Serializer_OnlySdkServers_ReturnsEmptyMcpServers()
+    {
+        var servers = new Dictionary<string, McpServerConfig>
+        {
+            ["sdk"] = McpSdkServerConfig.Create("sdk", [])
+        };
+
+        string json = McpConfigSerializer.Serialize(servers);
+
+        // Still has wrapper but no server entries
+        await Assert.That(json).Contains("\"mcpServers\"");
+        await Assert.That(json).DoesNotContain("\"sdk\"");
+    }
+
+    [Test]
+    public async Task CliArgsBuilder_OnlySdkServers_OmitsMcpConfigArg()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions
+        {
+            McpServers = new Dictionary<string, McpServerConfig>
+            {
+                ["sdk"] = McpSdkServerConfig.Create("sdk", [])
+            }
+        });
+
+        await Assert.That(args).DoesNotContain("--mcp-config");
+    }
+
+    [Test]
+    public async Task CliArgsBuilder_MixedServers_OnlySerializesExternalServers()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions
+        {
+            McpServers = new Dictionary<string, McpServerConfig>
+            {
+                ["external"] = new McpStdioServerConfig(Command: "cmd"),
+                ["sdk"] = McpSdkServerConfig.Create("sdk", [])
+            }
+        });
+
+        int idx = args.IndexOf("--mcp-config");
+        await Assert.That(idx).IsGreaterThanOrEqualTo(0);
+        await Assert.That(args[idx + 1]).Contains("\"external\"");
+        await Assert.That(args[idx + 1]).DoesNotContain("\"sdk\"");
+    }
+
+    [Test]
+    public async Task McpSdkServerConfig_Create_SetsProperties()
+    {
+        var tool = SdkMcpTool.Create("test", "desc",
+            McpJsonSchema.Object(), async (args, ct) => McpToolResult.Text("ok"));
+
+        var config = McpSdkServerConfig.Create("my-server", [tool], "2.0.0");
+
+        await Assert.That(config.Name).IsEqualTo("my-server");
+        await Assert.That(config.Version).IsEqualTo("2.0.0");
+        await Assert.That(config.Tools).Count().IsEqualTo(1);
     }
 }

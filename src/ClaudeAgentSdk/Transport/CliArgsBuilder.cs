@@ -166,7 +166,8 @@ internal static class CliArgsBuilder
             }
         }
 
-        if (options.McpServers is { Count: > 0 })
+        if (options.McpServers is { Count: > 0 } &&
+            options.McpServers.Any(kvp => kvp.Value is not McpSdkServerConfig))
         {
             args.Add("--mcp-config");
             args.Add(McpConfigSerializer.Serialize(options.McpServers));

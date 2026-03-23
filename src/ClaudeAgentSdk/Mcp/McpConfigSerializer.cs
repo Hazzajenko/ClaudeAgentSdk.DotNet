@@ -15,6 +15,9 @@ internal static class McpConfigSerializer
 
             foreach (var (name, config) in servers)
             {
+                // SDK servers are handled in-process, not via CLI config
+                if (config is McpSdkServerConfig) continue;
+
                 w.WriteStartObject(name);
                 WriteServerConfig(w, config);
                 w.WriteEndObject();
