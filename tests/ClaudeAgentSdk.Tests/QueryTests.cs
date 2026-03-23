@@ -7,11 +7,31 @@ namespace ClaudeAgentSdk.Tests;
 
 /// <summary>
 /// Tests for the query flow using mock transport (synthetic CLI output).
-/// Does NOT test Claude.QueryAsync directly (that needs a real CLI).
-/// Tests the message flow logic that the query API depends on.
 /// </summary>
 public class QueryTests
 {
+    private const string StructuredOutputFlow = """
+        {"type":"assistant","message":{"content":[{"type":"tool_use","id":"so_1","name":"StructuredOutput","input":{"content":{"name":"Alice","age":30}}}],"model":"claude-sonnet-4-5-20250929"}}
+        {"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"so_1","content":"Structured output provided successfully"}]},"parent_tool_use_id":"so_1"}
+        {"type":"assistant","message":{"content":[{"type":"text","text":"Extracted the person info."}],"model":"claude-sonnet-4-5-20250929"}}
+        {"type":"result","subtype":"success","duration_ms":200,"duration_api_ms":180,"is_error":false,"num_turns":2,"session_id":"s1","structured_output":{"name":"Alice","age":30}}
+        """;
+
+    [Test]
+    public async Task QueryCoreAsync_DoesNotCloseStdinBeforeResult()
+    {
+        var transport = new Transport.MockTransport(StructuredOutputFlow);
+
+        var messages = new List<Message>();
+        await foreach (var msg in Claude.QueryCoreAsync("Extract person info", transport))
+        {
+            messages.Add(msg);
+        }
+
+        await Assert.That(transport.EndInputCalled).IsFalse();
+        await Assert.That(messages.OfType<ResultMessage>().First().StructuredOutput).IsNotNull();
+    }
+
     [Test]
     public async Task QueryFlow_AssistantThenResult_CollectsTextFromAssistant()
     {
