@@ -14,6 +14,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `McpToolResult` hierarchy for tool responses (`McpToolResult.Text()`, `McpToolResult.Error()`)
 - `SdkMcpRequestHandler` routes MCP JSONRPC messages (`initialize`, `tools/list`, `tools/call`) to in-process tool handlers via the control protocol `mcp_message` subtype
 
+### Fixed
+
+- Fix NuGet package metadata pointing to non-existent GitHub repository URL
+
 ### Changed
 
 - `McpConfigSerializer` now skips SDK server configs (they run in-process, not via CLI `--mcp-config`)
