@@ -55,6 +55,50 @@ public class QueryTests
     }
 
     [Test]
+    public async Task QueryCoreAsync_StructuredOutput_FullFlow()
+    {
+        var transport = new Transport.MockTransport(StructuredOutputFlow);
+        var messages = new List<Message>();
+        await foreach (var msg in Claude.QueryCoreAsync("Extract person info", transport))
+        {
+            messages.Add(msg);
+        }
+
+        // All 4 messages up to and including ResultMessage
+        await Assert.That(messages).Count().IsEqualTo(4);
+        await Assert.That(messages[0]).IsTypeOf<AssistantMessage>(); // tool_use
+        await Assert.That(messages[1]).IsTypeOf<UserMessage>();      // tool_result
+        await Assert.That(messages[2]).IsTypeOf<AssistantMessage>(); // text summary
+        await Assert.That(messages[3]).IsTypeOf<ResultMessage>();    // result + structured_output
+
+        var result = (ResultMessage)messages[3];
+        await Assert.That(result.StructuredOutput).IsNotNull();
+
+        var person = result.StructuredOutput!.Value.Deserialize(TestJsonContext.Default.PersonDto);
+        await Assert.That(person!.Name).IsEqualTo("Alice");
+        await Assert.That(person.Age).IsEqualTo(30);
+    }
+
+    [Test]
+    public async Task QueryCoreAsync_RegularQuery_StillWorks()
+    {
+        var input = """
+            {"type":"assistant","message":{"content":[{"type":"text","text":"Hello world"}],"model":"m"}}
+            {"type":"result","subtype":"success","duration_ms":50,"duration_api_ms":40,"is_error":false,"num_turns":1,"session_id":"s1","result":"Hello world"}
+            """;
+
+        var transport = new Transport.MockTransport(input);
+        var messages = new List<Message>();
+        await foreach (var msg in Claude.QueryCoreAsync("say hello", transport))
+        {
+            messages.Add(msg);
+        }
+
+        await Assert.That(messages).Count().IsEqualTo(2);
+        await Assert.That(transport.EndInputCalled).IsFalse();
+    }
+
+    [Test]
     public async Task QueryFlow_AssistantThenResult_CollectsTextFromAssistant()
     {
         var input = """
