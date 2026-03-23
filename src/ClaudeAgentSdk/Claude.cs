@@ -57,6 +57,9 @@ public static class Claude
         await foreach (var message in transport.ReadMessagesAsync(cancellationToken))
         {
             yield return message;
+
+            if (message is ResultMessage)
+                yield break;
         }
     }
 
