@@ -53,7 +53,6 @@ public static class Claude
     {
         string json = BuildUserMessageJson(prompt);
         await transport.WriteAsync(json, cancellationToken);
-        await transport.EndInputAsync(cancellationToken);
 
         await foreach (var message in transport.ReadMessagesAsync(cancellationToken))
         {
