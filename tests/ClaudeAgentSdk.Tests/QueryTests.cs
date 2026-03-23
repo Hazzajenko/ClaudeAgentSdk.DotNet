@@ -33,6 +33,28 @@ public class QueryTests
     }
 
     [Test]
+    public async Task QueryCoreAsync_StopsAfterResultMessage()
+    {
+        // Messages after ResultMessage should not be yielded
+        var input = """
+            {"type":"assistant","message":{"content":[{"type":"text","text":"first"}],"model":"m"}}
+            {"type":"result","subtype":"success","duration_ms":100,"duration_api_ms":90,"is_error":false,"num_turns":1,"session_id":"s1"}
+            {"type":"assistant","message":{"content":[{"type":"text","text":"should not appear"}],"model":"m"}}
+            """;
+
+        var transport = new Transport.MockTransport(input);
+        var messages = new List<Message>();
+        await foreach (var msg in Claude.QueryCoreAsync("test", transport))
+        {
+            messages.Add(msg);
+        }
+
+        await Assert.That(messages).Count().IsEqualTo(2);
+        await Assert.That(messages[0]).IsTypeOf<AssistantMessage>();
+        await Assert.That(messages[1]).IsTypeOf<ResultMessage>();
+    }
+
+    [Test]
     public async Task QueryFlow_AssistantThenResult_CollectsTextFromAssistant()
     {
         var input = """
