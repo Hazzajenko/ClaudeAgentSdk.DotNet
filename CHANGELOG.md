@@ -13,15 +13,21 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `McpJsonSchema` static builder for constructing AOT-safe JSON Schema input definitions (`Object`, `String`, `Number`, `Integer`, `Boolean`)
 - `McpToolResult` hierarchy for tool responses (`McpToolResult.Text()`, `McpToolResult.Error()`)
 - `SdkMcpRequestHandler` routes MCP JSONRPC messages (`initialize`, `tools/list`, `tools/call`) to in-process tool handlers via the control protocol `mcp_message` subtype
+- STJ source-generated JSON deserialization via `ClaudeJsonContext` and internal wire DTOs — replaces manual `JsonDocument` property extraction with compile-time validated, AOT-safe `[JsonSerializable]` types
 
 ### Fixed
 
 - Fix NuGet package metadata pointing to non-existent GitHub repository URL
+- Fix `JsonDocument` memory leaks in `SessionMessageParser.ParseTranscriptEntries` and `SessionStorage.ExtractFirstPromptFromHead` — pooled memory was never disposed
 
 ### Changed
 
 - `McpConfigSerializer` now skips SDK server configs (they run in-process, not via CLI `--mcp-config`)
 - `CliArgsBuilder` omits `--mcp-config` when only SDK servers are configured
+
+### Removed
+
+- `MessageConverter` and `ContentBlockConverter` — replaced by source-generated wire DTO deserialization
 
 ## [0.0.5] - 2026-03-22
 
