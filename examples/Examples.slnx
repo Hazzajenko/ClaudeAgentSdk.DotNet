@@ -1,0 +1,15 @@
+<Solution>
+  <Project Path="../src/ClaudeAgentSdk/ClaudeAgentSdk.csproj" />
+  <Project Path="Agents/Agents.csproj" />
+  <Project Path="Hooks/Hooks.csproj" />
+  <Project Path="MaxBudget/MaxBudget.csproj" />
+  <Project Path="McpCalculator/McpCalculator.csproj" />
+  <Project Path="PartialMessages/PartialMessages.csproj" />
+  <Project Path="QuickStart/QuickStart.csproj" />
+  <Project Path="StderrCallback/StderrCallback.csproj" />
+  <Project Path="StreamingClient/StreamingClient.csproj" />
+  <Project Path="StructuredOutput/StructuredOutput.csproj" />
+  <Project Path="SystemPrompt/SystemPrompt.csproj" />
+  <Project Path="ToolPermissions/ToolPermissions.csproj" />
+  <Project Path="ToolsConfiguration/ToolsConfiguration.csproj" />
+</Solution>
