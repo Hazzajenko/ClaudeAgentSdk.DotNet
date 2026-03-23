@@ -26,6 +26,11 @@ internal sealed class ControlProtocolHandler
     /// </summary>
     public Func<JsonElement, CancellationToken, Task<JsonElement>>? OnCanUseTool { get; set; }
 
+    /// <summary>
+    /// Callback for incoming mcp_message control requests. Routes to SDK MCP servers.
+    /// </summary>
+    public Func<string, JsonElement, CancellationToken, Task<JsonElement>>? OnMcpMessage { get; set; }
+
     public ControlProtocolHandler(ITransport transport)
     {
         _transport = transport;
@@ -110,6 +115,13 @@ internal sealed class ControlProtocolHandler
             else if (subtype == "can_use_tool" && OnCanUseTool is not null)
             {
                 responseData = await OnCanUseTool(request.Clone(), cancellationToken);
+            }
+            else if (subtype == "mcp_message" && OnMcpMessage is not null)
+            {
+                string serverName = request.GetProperty("server_name").GetString()!;
+                JsonElement message = request.GetProperty("message").Clone();
+                var mcpResponse = await OnMcpMessage(serverName, message, cancellationToken);
+                responseData = BuildMcpResponseWrapper(mcpResponse);
             }
             else
             {
@@ -214,5 +226,19 @@ internal sealed class ControlProtocolHandler
             w.WriteEndObject();
         }
         await WriteAsync(Encoding.UTF8.GetString(stream.ToArray()), ct);
+    }
+
+    private static JsonElement BuildMcpResponseWrapper(JsonElement mcpResponse)
+    {
+        using var stream = new MemoryStream();
+        using (var w = new Utf8JsonWriter(stream))
+        {
+            w.WriteStartObject();
+            w.WritePropertyName("mcp_response");
+            mcpResponse.WriteTo(w);
+            w.WriteEndObject();
+        }
+        using var doc = JsonDocument.Parse(Encoding.UTF8.GetString(stream.ToArray()));
+        return doc.RootElement.Clone();
     }
 }

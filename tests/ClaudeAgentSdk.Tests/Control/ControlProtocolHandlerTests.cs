@@ -145,6 +145,50 @@ public class ControlProtocolHandlerTests
     }
 
     [Test]
+    public async Task HandleControlRequestAsync_McpMessage_InvokesOnMcpMessage()
+    {
+        var transport = Substitute.For<ITransport>();
+        var writtenJson = new List<string>();
+        transport.WriteAsync(Arg.Do<string>(s => writtenJson.Add(s)), Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        var handler = new ControlProtocolHandler(transport);
+
+        string? receivedServerName = null;
+        handler.OnMcpMessage = async (serverName, message, ct) =>
+        {
+            receivedServerName = serverName;
+            // Return a mock JSONRPC response
+            using var doc = JsonDocument.Parse("""{"jsonrpc":"2.0","id":1,"result":{"tools":[]}}""");
+            return doc.RootElement.Clone();
+        };
+
+        using var requestDoc = JsonDocument.Parse("""
+            {
+                "request_id": "req_mcp_1",
+                "request": {
+                    "subtype": "mcp_message",
+                    "server_name": "math",
+                    "message": {"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}
+                }
+            }
+            """);
+
+        await handler.HandleControlRequestAsync(requestDoc.RootElement, CancellationToken.None);
+
+        await Assert.That(receivedServerName).IsEqualTo("math");
+
+        // Verify response was written with mcp_response wrapper
+        await Assert.That(writtenJson.Count).IsEqualTo(1);
+        using var sentDoc = JsonDocument.Parse(writtenJson[0]);
+        var response = sentDoc.RootElement.GetProperty("response");
+        await Assert.That(response.GetProperty("subtype").GetString()).IsEqualTo("success");
+
+        var responseData = response.GetProperty("response");
+        await Assert.That(responseData.TryGetProperty("mcp_response", out _)).IsTrue();
+    }
+
+    [Test]
     public async Task FailAllPending_CancelsOutstandingRequests()
     {
         var transport = Substitute.For<ITransport>();
