@@ -5,6 +5,8 @@ using System.Threading.Channels;
 using ClaudeAgentSdk.Agents;
 using ClaudeAgentSdk.Control;
 using ClaudeAgentSdk.Hooks;
+using ClaudeAgentSdk.Mcp;
+using ClaudeAgentSdk.Mcp.Sdk;
 using ClaudeAgentSdk.Messages;
 using ClaudeAgentSdk.Permissions;
 using ClaudeAgentSdk.Transport;
@@ -25,6 +27,7 @@ public sealed class ClaudeClient : IAsyncDisposable
     private CancellationTokenSource? _readerCts;
     private JsonElement _initializationResult;
     private readonly Dictionary<string, HookCallback> _hookCallbacks = new();
+    private Dictionary<string, SdkMcpRequestHandler>? _sdkMcpHandlers;
     private int _nextCallbackId;
     private bool _disposed;
 
@@ -216,6 +219,31 @@ public sealed class ClaudeClient : IAsyncDisposable
 
     internal ControlProtocolHandler? ControlHandler => _controlHandler;
 
+    private void WireSdkMcpServers()
+    {
+        if (_options.McpServers is null) return;
+
+        var sdkServers = _options.McpServers
+            .Where(kvp => kvp.Value is McpSdkServerConfig)
+            .ToDictionary(
+                kvp => kvp.Key,
+                kvp => new SdkMcpRequestHandler((McpSdkServerConfig)kvp.Value));
+
+        if (sdkServers.Count == 0) return;
+
+        _sdkMcpHandlers = sdkServers;
+        _controlHandler!.OnMcpMessage = HandleMcpMessageAsync;
+    }
+
+    private async Task<JsonElement> HandleMcpMessageAsync(
+        string serverName, JsonElement message, CancellationToken ct)
+    {
+        if (_sdkMcpHandlers is null || !_sdkMcpHandlers.TryGetValue(serverName, out var handler))
+            throw new InvalidOperationException($"SDK MCP server '{serverName}' not found");
+
+        return await handler.HandleAsync(message, ct);
+    }
+
     private async Task ConnectAsync(CancellationToken cancellationToken)
     {
         string cliPath = CliFinder.Find(_options.CliPath);
@@ -245,6 +273,9 @@ public sealed class ClaudeClient : IAsyncDisposable
         // Wire up can_use_tool dispatch
         if (_options.CanUseTool is not null)
             _controlHandler.OnCanUseTool = HandleCanUseToolAsync;
+
+        // Wire up SDK MCP server routing
+        WireSdkMcpServers();
 
         // Start background reader
         _readerCts = new CancellationTokenSource();
