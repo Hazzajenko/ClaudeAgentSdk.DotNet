@@ -55,6 +55,44 @@ public class QueryTests
     }
 
     [Test]
+    public async Task QueryCoreAsync_WritesToolResultForToolUse()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        // Phase 1: CLI emits assistant with tool_use, then waits for tool_result
+        const string phase1 = """{"type":"assistant","message":{"content":[{"type":"tool_use","id":"tu_1","name":"StructuredOutput","input":{"content":{"name":"Alice","age":30}}}],"model":"m"}}""";
+
+        // Phase 2: after SDK writes tool_result, CLI continues with remaining messages
+        const string phase2Assistant = """{"type":"assistant","message":{"content":[{"type":"text","text":"Done."}],"model":"m"}}""";
+        const string phase2Result = """{"type":"result","subtype":"success","duration_ms":100,"duration_api_ms":90,"is_error":false,"num_turns":2,"session_id":"s1","structured_output":{"name":"Alice","age":30}}""";
+
+        var transport = new Transport.MockTransport(phase1);
+        transport.OnWrite = json =>
+        {
+            if (json.Contains("tool_result"))
+            {
+                transport.EnqueueOutput(phase2Assistant);
+                transport.EnqueueOutput(phase2Result);
+            }
+        };
+
+        var messages = new List<Message>();
+        await foreach (var msg in Claude.QueryCoreAsync("Extract person info", transport, cts.Token))
+        {
+            messages.Add(msg);
+        }
+
+        // Verify tool_result was written (write #1 = user prompt, write #2 = tool_result)
+        await Assert.That(transport.WriteCount).IsEqualTo(2);
+        await Assert.That(transport.WrittenMessages[1]).Contains("tool_result");
+        await Assert.That(transport.WrittenMessages[1]).Contains("tu_1");
+
+        // Verify full flow completed
+        await Assert.That(messages).Count().IsEqualTo(3);
+        var result = messages.OfType<ResultMessage>().First();
+        await Assert.That(result.StructuredOutput).IsNotNull();
+    }
+
+    [Test]
     public async Task QueryCoreAsync_StructuredOutput_FullFlow()
     {
         var transport = new Transport.MockTransport(StructuredOutputFlow);
