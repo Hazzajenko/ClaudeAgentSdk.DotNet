@@ -11,6 +11,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - 12 example projects in `examples/` solution demonstrating SDK features: QuickStart, StreamingClient, SystemPrompt, MaxBudget, ToolsConfiguration, StderrCallback, PartialMessages, Agents, Hooks, ToolPermissions, McpCalculator, StructuredOutput
 
+### Fixed
+
+- Fix `--json-schema` structured output not working — `QueryAsync` now uses streaming mode with initialize handshake internally (matching Python SDK) instead of `-p` print mode, which couldn't complete the CLI's multi-turn StructuredOutput tool cycle when stdout is a pipe
+- Fix `user` messages with `tool_result` content failing to deserialize when the CLI emits `tool_use_id` before `type` in the JSON (STJ polymorphic deserialization requires the type discriminator to be the first property)
+
 ## [0.0.6] - 2026-03-23
 
 ### Added
