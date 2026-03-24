@@ -16,6 +16,12 @@ public sealed record UserMessage : Message
     public string? Uuid { get; init; }
     public string? ParentToolUseId { get; init; }
     public JsonElement? ToolUseResult { get; init; }
+
+    /// <summary>Text when content is a plain string, null otherwise.</summary>
+    public string? TextContent => Content as string;
+
+    /// <summary>Content blocks when structured, null otherwise.</summary>
+    public IReadOnlyList<ContentBlock>? ContentBlocks => Content as IReadOnlyList<ContentBlock>;
 }
 
 public sealed record AssistantMessage : Message
