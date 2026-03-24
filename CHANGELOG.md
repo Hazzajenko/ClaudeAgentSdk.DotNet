@@ -12,6 +12,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `MessageCallback` option on `ClaudeClientOptions` — fires for every message before it's yielded, for real-time debug visibility into the message stream
 - `Claude.FormatMessage(Message)` — returns a concise debug string for any message type (e.g. `[assistant] 1 blocks: tool_use:Read`, `[result] turns=2 error=False cost=$0.0671`). Use with `MessageCallback = msg => Console.Error.WriteLine(Claude.FormatMessage(msg))`
 
+### Changed
+
+- **BREAKING**: `HookCallback` delegate signature changes from `Task<JsonElement>(JsonElement, string?, CancellationToken)` to `Task<HookOutput>(HookInput, CancellationToken)`. Hook callbacks now receive typed `HookInput` subclasses (`PreToolUseInput`, `PostToolUseInput`, `UserPromptSubmitInput`, etc.) and return `HookOutput` records instead of raw JSON. The `hookEventName` discriminator is auto-set by the concrete `HookSpecificOutput` type — no more manual string matching.
+
 ### Fixed
 
 - Fix agent queries hanging — task system messages (`task_started`, `task_progress`, `task_notification`) failed to deserialize because the CLI puts fields at the top level, not nested in a `data` property
