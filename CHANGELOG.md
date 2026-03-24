@@ -7,6 +7,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- Fix agent queries hanging — task system messages (`task_started`, `task_progress`, `task_notification`) failed to deserialize because the CLI puts fields at the top level, not nested in a `data` property
+- Fix `JsonStreamReader` silently swallowing deserialization errors as "partial JSON" — any single malformed message corrupted the buffer and killed the entire stream. Non-JSON exceptions now propagate immediately.
+
 ## [0.0.7] - 2026-03-24
 
 ### Added
