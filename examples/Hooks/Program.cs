@@ -77,6 +77,7 @@ async Task PreToolUseExample()
     var options = new ClaudeClientOptions
     {
         AllowedTools = ["Bash"],
+        MessageCallback = msg => Console.Error.WriteLine(Claude.FormatMessage(msg)),
         Hooks = new Dictionary<HookEvent, IReadOnlyList<HookMatcher>>
         {
             [HookEvent.PreToolUse] =
@@ -119,7 +120,7 @@ async Task UserPromptSubmitExample()
         return Task.FromResult(BuildHookResponse(w =>
         {
             w.WriteStartObject("hookSpecificOutput");
-            w.WriteString("hookEventName", "SessionStart");
+            w.WriteString("hookEventName", "UserPromptSubmit");
             w.WriteString("additionalContext", "My favorite color is hot pink");
             w.WriteEndObject();
         }));
@@ -127,6 +128,7 @@ async Task UserPromptSubmitExample()
 
     var options = new ClaudeClientOptions
     {
+        MessageCallback = msg => Console.Error.WriteLine(Claude.FormatMessage(msg)),
         Hooks = new Dictionary<HookEvent, IReadOnlyList<HookMatcher>>
         {
             [HookEvent.UserPromptSubmit] =
@@ -158,7 +160,8 @@ async Task PostToolUseExample()
     {
         var toolResponse = input.TryGetProperty("tool_response", out var tr) ? tr.GetString() ?? "" : "";
 
-        if (toolResponse.Contains("error", StringComparison.OrdinalIgnoreCase))
+        if (toolResponse.Contains("No such file or directory", StringComparison.OrdinalIgnoreCase)
+            || toolResponse.Contains("error", StringComparison.OrdinalIgnoreCase))
         {
             return Task.FromResult(BuildHookResponse(w =>
             {
@@ -177,6 +180,7 @@ async Task PostToolUseExample()
     var options = new ClaudeClientOptions
     {
         AllowedTools = ["Bash"],
+        MessageCallback = msg => Console.Error.WriteLine(Claude.FormatMessage(msg)),
         Hooks = new Dictionary<HookEvent, IReadOnlyList<HookMatcher>>
         {
             [HookEvent.PostToolUse] =
