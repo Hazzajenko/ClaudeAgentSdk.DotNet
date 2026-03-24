@@ -14,6 +14,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `McpSdkServerConfig.GetQualifiedToolNames(serverKey)` — generates `mcp__{key}__{tool}` names for `AllowedTools`. Eliminates hand-constructed magic strings.
 - `HookMatcher.Create(matcher, callback)` factory methods with sync overload — collapses 7-line object initializer to 1 line, kills `Task.FromResult` noise in sync hook handlers
 - Auto-derive JSON schema from `JsonTypeInfo<T>` in `Claude.QueryAsync<T>()` — no more manually duplicating the type shape with `McpJsonSchema.Object(...)`. Uses .NET 9's `JsonSchemaExporter`, AOT-safe.
+- `SdkMcpTool.Create<T>(name, description, jsonTypeInfo, handler)` — typed MCP tool handlers with auto-derived input schema. Eliminates manual `McpJsonSchema.Object(...)` construction, raw `JsonElement` property access, and `Task.FromResult` wrapping. Sync and async overloads.
 - `MessageCallback` option on `ClaudeClientOptions` — fires for every message before it's yielded, for real-time debug visibility into the message stream
 - `Claude.FormatMessage(Message)` — returns a concise debug string for any message type (e.g. `[assistant] 1 blocks: tool_use:Read`, `[result] turns=2 error=False cost=$0.0671`). Use with `MessageCallback = msg => Console.Error.WriteLine(Claude.FormatMessage(msg))`
 
