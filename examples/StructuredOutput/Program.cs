@@ -19,7 +19,7 @@ var options = new ClaudeClientOptions
     OutputFormatSchema = schema,
     MaxTurns = 3,
     StderrCallback = line => Console.Error.WriteLine($"[stderr] {line}"),
-    // MessageCallback = msg => Console.Error.WriteLine($"[debug] {msg.GetType().Name}"),
+    // MessageCallback = msg => Console.Error.WriteLine(Claude.FormatMessage(msg)),
 };
 
 Console.WriteLine("CLI command:");

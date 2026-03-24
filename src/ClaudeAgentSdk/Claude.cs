@@ -147,4 +147,39 @@ public static class Claude
 
         return $"{cliPath} {escapedArgs}";
     }
+
+    /// <summary>
+    /// Format a message as a concise debug string. Use with <see cref="ClaudeClientOptions.MessageCallback"/>:
+    /// <c>MessageCallback = msg => Console.Error.WriteLine(Claude.FormatMessage(msg))</c>
+    /// </summary>
+    public static string FormatMessage(Message message) => message switch
+    {
+        TaskStartedMessage t => $"[task_started] {t.TaskId}: {t.Description}",
+        TaskProgressMessage t => $"[task_progress] {t.TaskId} tokens={t.Usage.TotalTokens}",
+        TaskNotificationMessage t => $"[task_notification] {t.TaskId}: {t.Status}",
+        SystemMessage s => $"[system] {s.Subtype}",
+        AssistantMessage a => $"[assistant] {FormatBlocks(a.Content)}",
+        UserMessage u => $"[user] {FormatUserContent(u.Content)}",
+        ResultMessage r => $"[result] turns={r.NumTurns} error={r.IsError} cost=${r.TotalCostUsd:F4}",
+        RateLimitEvent r => $"[rate_limit] {r.RateLimitInfo.Status}",
+        StreamEvent => "[stream_event]",
+        _ => $"[{message.GetType().Name}]"
+    };
+
+    private static string FormatBlocks(IReadOnlyList<ContentBlock> blocks) =>
+        $"{blocks.Count} blocks: {string.Join(", ", blocks.Select(b => b switch
+        {
+            TextBlock t => $"text({t.Text.Length}ch)",
+            ThinkingBlock t => $"thinking({t.Thinking.Length}ch)",
+            ToolUseBlock t => $"tool_use:{t.Name}",
+            ToolResultBlock t => $"tool_result:{t.ToolUseId}",
+            _ => b.GetType().Name
+        }))}";
+
+    private static string FormatUserContent(object content) => content switch
+    {
+        string s => $"text({s.Length}ch)",
+        IReadOnlyList<ContentBlock> blocks => FormatBlocks(blocks),
+        _ => content.GetType().Name
+    };
 }
