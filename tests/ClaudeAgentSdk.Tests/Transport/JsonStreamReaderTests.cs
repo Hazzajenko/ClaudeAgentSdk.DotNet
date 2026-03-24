@@ -103,6 +103,30 @@ public class JsonStreamReaderTests
         await Assert.That(messages[3]).IsTypeOf<ResultMessage>();
     }
 
+    [Test]
+    public async Task ReadAllAsync_DeserializationError_Propagates()
+    {
+        // Valid JSON but unknown message type — should throw, not silently buffer
+        var input = """
+            {"type":"assistant","message":{"content":[{"type":"text","text":"Hello"}],"model":"m"}}
+            {"type":"unknown_future_type","data":{}}
+            {"type":"result","subtype":"success","duration_ms":1,"duration_api_ms":1,"is_error":false,"num_turns":1,"session_id":"s1"}
+            """;
+
+        var messages = new List<Message>();
+        await Assert.That(async () =>
+        {
+            using var reader = new StringReader(input);
+            await foreach (var msg in JsonStreamReader.ReadAllAsync(reader))
+            {
+                messages.Add(msg);
+            }
+        }).ThrowsException();
+
+        // First message should have been yielded before the error
+        await Assert.That(messages).Count().IsEqualTo(1);
+    }
+
     private static async Task<List<Message>> ReadAll(string input, CancellationToken ct = default)
     {
         using var reader = new StringReader(input);

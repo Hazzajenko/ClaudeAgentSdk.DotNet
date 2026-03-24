@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using ClaudeAgentSdk.Json;
 using ClaudeAgentSdk.Messages;
 
@@ -44,18 +45,22 @@ internal static class JsonStreamReader
                     $"JSON message exceeded maximum buffer size of {maxBufferSize} bytes");
             }
 
-            Message? message;
+            // Check if buffer contains syntactically complete JSON
             try
             {
-                message = ClaudeJsonOptions.DeserializeMessage(jsonBuffer);
-                jsonBuffer = "";
+                using var _ = JsonDocument.Parse(jsonBuffer);
             }
-            catch
+            catch (JsonException)
             {
-                // Partial JSON — keep buffering
+                // Incomplete JSON — keep buffering until we have a complete object
                 continue;
             }
 
+            // JSON is complete — deserialize. Errors here are real bugs and must propagate.
+            string completeJson = jsonBuffer;
+            jsonBuffer = "";
+
+            var message = ClaudeJsonOptions.DeserializeMessage(completeJson);
             if (message is not null)
             {
                 yield return message;
