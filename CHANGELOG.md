@@ -9,7 +9,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-- `MessageCallback` option on `ClaudeClientOptions` — fires for every message before it's yielded, for real-time debug visibility into the message stream (e.g. `msg => Console.Error.WriteLine($"[debug] {msg.GetType().Name}")`)
+- `MessageCallback` option on `ClaudeClientOptions` — fires for every message before it's yielded, for real-time debug visibility into the message stream
+- `Claude.FormatMessage(Message)` — returns a concise debug string for any message type (e.g. `[assistant] 1 blocks: tool_use:Read`, `[result] turns=2 error=False cost=$0.0671`). Use with `MessageCallback = msg => Console.Error.WriteLine(Claude.FormatMessage(msg))`
 
 ### Fixed
 
