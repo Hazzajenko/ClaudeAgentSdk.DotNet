@@ -7,6 +7,20 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- `PermissionUpdate`, `PermissionRuleValue` types and `PermissionUpdateType` enum for typed permission rule management — programmatically add/remove/replace permission rules, change permission mode, or modify allowed directories from `CanUseTool` callbacks
+- `PermissionResultAllow.UpdatedPermissions` — return permission updates alongside allow decisions (matches Python SDK's `updated_permissions`)
+- `ITransport` is now public with `ConnectAsync` — inject custom transports into `ClaudeClient` and `Claude.QueryAsync()` for testing or non-CLI backends (all overloads accept optional `transport:` parameter)
+- CLI version check on connect — verifies `claude --version` >= 2.0.0 before starting, throws `CliVersionException` if too old. Skip with `CLAUDE_AGENT_SDK_SKIP_VERSION_CHECK=1` env var. Skipped when custom transport is injected.
+- `ClaudeClientOptions.Settings` — pass arbitrary settings JSON string or file path via `--settings`. When both `Settings` and `Sandbox` are set, merges sandbox config into the settings JSON.
+- `ClaudeClientOptions.AddDirectories` — specify additional project directories via `--add-dir` for multi-root workspaces
+
+### Changed
+
+- **BREAKING**: `ToolPermissionContext.Suggestions` changes from `IReadOnlyList<JsonElement>?` to `IReadOnlyList<PermissionUpdate>?` — suggestions from the CLI are now deserialized into typed `PermissionUpdate` records instead of raw JSON
+- **BREAKING**: `ITransport` gains `ConnectAsync` method — existing custom implementations (unlikely given it was `internal`) must add this method
+
 ## [0.0.8] - 2026-03-24
 
 ### Added
