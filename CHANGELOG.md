@@ -9,12 +9,18 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- `AssistantMessage.Text` — concatenated text from all `TextBlock` content, null when none. Replaces the 5-line nested pattern match every user had to write.
+- `UserMessage.TextContent` / `UserMessage.ContentBlocks` — typed accessors for the polymorphic `Content` property. No more `when content is IReadOnlyList<ContentBlock>` downcasts.
+- `McpSdkServerConfig.GetQualifiedToolNames(serverKey)` — generates `mcp__{key}__{tool}` names for `AllowedTools`. Eliminates hand-constructed magic strings.
+- `HookMatcher.Create(matcher, callback)` factory methods with sync overload — collapses 7-line object initializer to 1 line, kills `Task.FromResult` noise in sync hook handlers
+- Auto-derive JSON schema from `JsonTypeInfo<T>` in `Claude.QueryAsync<T>()` — no more manually duplicating the type shape with `McpJsonSchema.Object(...)`. Uses .NET 9's `JsonSchemaExporter`, AOT-safe.
 - `MessageCallback` option on `ClaudeClientOptions` — fires for every message before it's yielded, for real-time debug visibility into the message stream
 - `Claude.FormatMessage(Message)` — returns a concise debug string for any message type (e.g. `[assistant] 1 blocks: tool_use:Read`, `[result] turns=2 error=False cost=$0.0671`). Use with `MessageCallback = msg => Console.Error.WriteLine(Claude.FormatMessage(msg))`
 
 ### Changed
 
 - **BREAKING**: `HookCallback` delegate signature changes from `Task<JsonElement>(JsonElement, string?, CancellationToken)` to `Task<HookOutput>(HookInput, CancellationToken)`. Hook callbacks now receive typed `HookInput` subclasses (`PreToolUseInput`, `PostToolUseInput`, `UserPromptSubmitInput`, etc.) and return `HookOutput` records instead of raw JSON. The `hookEventName` discriminator is auto-set by the concrete `HookSpecificOutput` type — no more manual string matching.
+- **BREAKING**: `AssistantMessage.Usage` and `ResultMessage.Usage` change from `JsonElement?` to typed `Usage` class with `InputTokens`, `OutputTokens`, `CacheCreationInputTokens`, `CacheReadInputTokens`. Unknown fields from future CLI versions are captured in `ExtensionData` for forward compatibility.
 
 ### Fixed
 
