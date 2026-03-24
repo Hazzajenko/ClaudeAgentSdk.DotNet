@@ -7,6 +7,7 @@ public abstract record PermissionResult;
 public sealed record PermissionResultAllow : PermissionResult
 {
     public JsonElement? UpdatedInput { get; init; }
+    public IReadOnlyList<PermissionUpdate>? UpdatedPermissions { get; init; }
 }
 
 public sealed record PermissionResultDeny : PermissionResult
@@ -17,7 +18,33 @@ public sealed record PermissionResultDeny : PermissionResult
 
 public sealed record ToolPermissionContext
 {
-    public IReadOnlyList<JsonElement>? Suggestions { get; init; }
+    public IReadOnlyList<PermissionUpdate>? Suggestions { get; init; }
+}
+
+public enum PermissionUpdateType
+{
+    AddRules,
+    ReplaceRules,
+    RemoveRules,
+    SetMode,
+    AddDirectories,
+    RemoveDirectories
+}
+
+public sealed record PermissionRuleValue
+{
+    public required string ToolName { get; init; }
+    public required string RuleContent { get; init; }
+    public required string Behavior { get; init; }
+}
+
+public sealed record PermissionUpdate
+{
+    public required PermissionUpdateType Type { get; init; }
+    public IReadOnlyList<PermissionRuleValue>? Rules { get; init; }
+    public string? Mode { get; init; }
+    public IReadOnlyList<string>? Directories { get; init; }
+    public string? Destination { get; init; }
 }
 
 /// <summary>

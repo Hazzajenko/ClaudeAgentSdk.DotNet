@@ -126,11 +126,11 @@ internal sealed class ControlProtocolHandler
                 string toolName = request.TryGetProperty("tool_name", out var tn) ? tn.GetString() ?? "" : "";
                 JsonElement input = request.TryGetProperty("input", out var inp) ? inp.Clone() : default;
 
-                var suggestions = new List<JsonElement>();
+                var suggestions = new List<PermissionUpdate>();
                 if (request.TryGetProperty("permission_suggestions", out var ps) && ps.ValueKind == JsonValueKind.Array)
                 {
                     foreach (var s in ps.EnumerateArray())
-                        suggestions.Add(s.Clone());
+                        suggestions.Add(ParsePermissionUpdate(s));
                 }
 
                 var context = new ToolPermissionContext { Suggestions = suggestions };
@@ -264,6 +264,10 @@ internal sealed class ControlProtocolHandler
                         updatedInput.WriteTo(w);
                     else
                         originalInput.WriteTo(w);
+                    if (allow.UpdatedPermissions is { Count: > 0 } perms)
+                    {
+                        WritePermissionUpdates(w, perms);
+                    }
                     break;
 
                 case PermissionResultDeny deny:
@@ -291,5 +295,105 @@ internal sealed class ControlProtocolHandler
         }
         using var doc = JsonDocument.Parse(Encoding.UTF8.GetString(stream.ToArray()));
         return doc.RootElement.Clone();
+    }
+
+    private static PermissionUpdate ParsePermissionUpdate(JsonElement element)
+    {
+        string typeStr = element.TryGetProperty("type", out var t) ? t.GetString() ?? "" : "";
+        var type = typeStr switch
+        {
+            "addRules" => PermissionUpdateType.AddRules,
+            "replaceRules" => PermissionUpdateType.ReplaceRules,
+            "removeRules" => PermissionUpdateType.RemoveRules,
+            "setMode" => PermissionUpdateType.SetMode,
+            "addDirectories" => PermissionUpdateType.AddDirectories,
+            "removeDirectories" => PermissionUpdateType.RemoveDirectories,
+            _ => throw new JsonException($"Unknown permission update type: '{typeStr}'")
+        };
+
+        List<PermissionRuleValue>? rules = null;
+        if (element.TryGetProperty("rules", out var rulesEl) && rulesEl.ValueKind == JsonValueKind.Array)
+        {
+            rules = [];
+            foreach (var r in rulesEl.EnumerateArray())
+            {
+                rules.Add(new PermissionRuleValue
+                {
+                    ToolName = r.TryGetProperty("tool_name", out var tn) ? tn.GetString() ?? "" : "",
+                    RuleContent = r.TryGetProperty("rule_content", out var rc) ? rc.GetString() ?? "" : "",
+                    Behavior = r.TryGetProperty("behavior", out var b) ? b.GetString() ?? "" : ""
+                });
+            }
+        }
+
+        string? mode = element.TryGetProperty("mode", out var m) ? m.GetString() : null;
+        string? destination = element.TryGetProperty("destination", out var d) ? d.GetString() : null;
+
+        List<string>? directories = null;
+        if (element.TryGetProperty("directories", out var dirsEl) && dirsEl.ValueKind == JsonValueKind.Array)
+        {
+            directories = [];
+            foreach (var dir in dirsEl.EnumerateArray())
+                directories.Add(dir.GetString() ?? "");
+        }
+
+        return new PermissionUpdate
+        {
+            Type = type,
+            Rules = rules,
+            Mode = mode,
+            Directories = directories,
+            Destination = destination
+        };
+    }
+
+    private static void WritePermissionUpdates(Utf8JsonWriter w, IReadOnlyList<PermissionUpdate> updates)
+    {
+        w.WriteStartArray("updatedPermissions");
+        foreach (var update in updates)
+        {
+            w.WriteStartObject();
+            w.WriteString("type", update.Type switch
+            {
+                PermissionUpdateType.AddRules => "addRules",
+                PermissionUpdateType.ReplaceRules => "replaceRules",
+                PermissionUpdateType.RemoveRules => "removeRules",
+                PermissionUpdateType.SetMode => "setMode",
+                PermissionUpdateType.AddDirectories => "addDirectories",
+                PermissionUpdateType.RemoveDirectories => "removeDirectories",
+                _ => throw new ArgumentOutOfRangeException()
+            });
+
+            if (update.Rules is { Count: > 0 })
+            {
+                w.WriteStartArray("rules");
+                foreach (var rule in update.Rules)
+                {
+                    w.WriteStartObject();
+                    w.WriteString("tool_name", rule.ToolName);
+                    w.WriteString("rule_content", rule.RuleContent);
+                    w.WriteString("behavior", rule.Behavior);
+                    w.WriteEndObject();
+                }
+                w.WriteEndArray();
+            }
+
+            if (update.Mode is not null)
+                w.WriteString("mode", update.Mode);
+
+            if (update.Directories is { Count: > 0 })
+            {
+                w.WriteStartArray("directories");
+                foreach (string dir in update.Directories)
+                    w.WriteStringValue(dir);
+                w.WriteEndArray();
+            }
+
+            if (update.Destination is not null)
+                w.WriteString("destination", update.Destination);
+
+            w.WriteEndObject();
+        }
+        w.WriteEndArray();
     }
 }

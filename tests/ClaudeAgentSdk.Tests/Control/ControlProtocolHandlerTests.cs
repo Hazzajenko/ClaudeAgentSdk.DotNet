@@ -279,6 +279,184 @@ public class ControlProtocolHandlerTests
     }
 
     [Test]
+    public async Task HandleControlRequestAsync_CanUseTool_SuggestionsDeserializedAsTypedPermissionUpdates()
+    {
+        var transport = Substitute.For<ITransport>();
+        transport.WriteAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var handler = new ControlProtocolHandler(transport);
+
+        ToolPermissionContext? receivedContext = null;
+        handler.OnCanUseTool = (toolName, input, context, ct) =>
+        {
+            receivedContext = context;
+            return Task.FromResult<PermissionResult>(new PermissionResultAllow());
+        };
+
+        using var requestDoc = JsonDocument.Parse("""
+            {
+                "request_id": "req_sug_1",
+                "request": {
+                    "subtype": "can_use_tool",
+                    "tool_name": "Bash",
+                    "input": {"command": "ls"},
+                    "permission_suggestions": [
+                        {
+                            "type": "addRules",
+                            "rules": [
+                                {"tool_name": "Bash", "rule_content": "allow ls", "behavior": "allow"}
+                            ],
+                            "destination": "session"
+                        },
+                        {
+                            "type": "setMode",
+                            "mode": "acceptEdits",
+                            "destination": "session"
+                        }
+                    ]
+                }
+            }
+            """);
+
+        await handler.HandleControlRequestAsync(requestDoc.RootElement, CancellationToken.None);
+
+        await Assert.That(receivedContext).IsNotNull();
+        await Assert.That(receivedContext!.Suggestions).IsNotNull();
+        await Assert.That(receivedContext.Suggestions!.Count).IsEqualTo(2);
+
+        var addRules = receivedContext.Suggestions[0];
+        await Assert.That(addRules.Type).IsEqualTo(PermissionUpdateType.AddRules);
+        await Assert.That(addRules.Rules).IsNotNull();
+        await Assert.That(addRules.Rules!.Count).IsEqualTo(1);
+        await Assert.That(addRules.Rules[0].ToolName).IsEqualTo("Bash");
+        await Assert.That(addRules.Rules[0].RuleContent).IsEqualTo("allow ls");
+        await Assert.That(addRules.Rules[0].Behavior).IsEqualTo("allow");
+        await Assert.That(addRules.Destination).IsEqualTo("session");
+
+        var setMode = receivedContext.Suggestions[1];
+        await Assert.That(setMode.Type).IsEqualTo(PermissionUpdateType.SetMode);
+        await Assert.That(setMode.Mode).IsEqualTo("acceptEdits");
+    }
+
+    [Test]
+    public async Task HandleControlRequestAsync_CanUseTool_AllowWithUpdatedPermissions_WritesPermissionsInResponse()
+    {
+        var transport = Substitute.For<ITransport>();
+        var writtenJson = new List<string>();
+        transport.WriteAsync(Arg.Do<string>(s => writtenJson.Add(s)), Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        var handler = new ControlProtocolHandler(transport);
+
+        handler.OnCanUseTool = (toolName, input, context, ct) =>
+        {
+            return Task.FromResult<PermissionResult>(new PermissionResultAllow
+            {
+                UpdatedPermissions =
+                [
+                    new PermissionUpdate
+                    {
+                        Type = PermissionUpdateType.AddRules,
+                        Rules =
+                        [
+                            new PermissionRuleValue
+                            {
+                                ToolName = "Bash",
+                                RuleContent = "allow ls",
+                                Behavior = "allow"
+                            }
+                        ],
+                        Destination = "session"
+                    },
+                    new PermissionUpdate
+                    {
+                        Type = PermissionUpdateType.AddDirectories,
+                        Directories = ["/tmp/extra"],
+                        Destination = "session"
+                    }
+                ]
+            });
+        };
+
+        using var requestDoc = JsonDocument.Parse("""
+            {
+                "request_id": "req_perm_up_1",
+                "request": {
+                    "subtype": "can_use_tool",
+                    "tool_name": "Bash",
+                    "input": {"command": "ls"},
+                    "permission_suggestions": []
+                }
+            }
+            """);
+
+        await handler.HandleControlRequestAsync(requestDoc.RootElement, CancellationToken.None);
+
+        await Assert.That(writtenJson.Count).IsEqualTo(1);
+        using var sentDoc = JsonDocument.Parse(writtenJson[0]);
+        var responseData = sentDoc.RootElement.GetProperty("response").GetProperty("response");
+        await Assert.That(responseData.GetProperty("behavior").GetString()).IsEqualTo("allow");
+
+        // updatedPermissions array present
+        var perms = responseData.GetProperty("updatedPermissions");
+        await Assert.That(perms.ValueKind).IsEqualTo(JsonValueKind.Array);
+        await Assert.That(perms.GetArrayLength()).IsEqualTo(2);
+
+        // First: addRules
+        var first = perms[0];
+        await Assert.That(first.GetProperty("type").GetString()).IsEqualTo("addRules");
+        await Assert.That(first.GetProperty("destination").GetString()).IsEqualTo("session");
+        var rules = first.GetProperty("rules");
+        await Assert.That(rules.GetArrayLength()).IsEqualTo(1);
+        await Assert.That(rules[0].GetProperty("tool_name").GetString()).IsEqualTo("Bash");
+        await Assert.That(rules[0].GetProperty("rule_content").GetString()).IsEqualTo("allow ls");
+        await Assert.That(rules[0].GetProperty("behavior").GetString()).IsEqualTo("allow");
+
+        // Second: addDirectories
+        var second = perms[1];
+        await Assert.That(second.GetProperty("type").GetString()).IsEqualTo("addDirectories");
+        var dirs = second.GetProperty("directories");
+        await Assert.That(dirs[0].GetString()).IsEqualTo("/tmp/extra");
+    }
+
+    [Test]
+    public async Task HandleControlRequestAsync_CanUseTool_AllowWithoutUpdatedPermissions_OmitsField()
+    {
+        var transport = Substitute.For<ITransport>();
+        var writtenJson = new List<string>();
+        transport.WriteAsync(Arg.Do<string>(s => writtenJson.Add(s)), Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        var handler = new ControlProtocolHandler(transport);
+
+        handler.OnCanUseTool = (toolName, input, context, ct) =>
+        {
+            return Task.FromResult<PermissionResult>(new PermissionResultAllow());
+        };
+
+        using var requestDoc = JsonDocument.Parse("""
+            {
+                "request_id": "req_perm_no_up",
+                "request": {
+                    "subtype": "can_use_tool",
+                    "tool_name": "Read",
+                    "input": {"file_path": "/tmp/test.txt"},
+                    "permission_suggestions": []
+                }
+            }
+            """);
+
+        await handler.HandleControlRequestAsync(requestDoc.RootElement, CancellationToken.None);
+
+        await Assert.That(writtenJson.Count).IsEqualTo(1);
+        using var sentDoc = JsonDocument.Parse(writtenJson[0]);
+        var responseData = sentDoc.RootElement.GetProperty("response").GetProperty("response");
+        await Assert.That(responseData.GetProperty("behavior").GetString()).IsEqualTo("allow");
+        // No updatedPermissions field when not set
+        await Assert.That(responseData.TryGetProperty("updatedPermissions", out _)).IsFalse();
+    }
+
+    [Test]
     public async Task HandleControlRequestAsync_CanUseTool_Allow_WritesCorrectResponse()
     {
         var transport = Substitute.For<ITransport>();
