@@ -34,4 +34,11 @@ public sealed record McpSdkServerConfig : McpServerConfig
         Tools = tools,
         Version = version
     };
+
+    /// <summary>
+    /// Qualified tool names for <see cref="ClaudeClientOptions.AllowedTools"/>.
+    /// Format: <c>mcp__{serverKey}__{toolName}</c>
+    /// </summary>
+    public IReadOnlyList<string> GetQualifiedToolNames(string serverKey) =>
+        Tools.Select(t => $"mcp__{serverKey}__{t.Name}").ToList().AsReadOnly();
 }
