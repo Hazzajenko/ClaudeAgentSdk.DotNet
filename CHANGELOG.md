@@ -7,6 +7,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.0.7] - 2026-03-24
+
 ### Added
 
 - 12 example projects in `examples/` solution demonstrating SDK features: QuickStart, StreamingClient, SystemPrompt, MaxBudget, ToolsConfiguration, StderrCallback, PartialMessages, Agents, Hooks, ToolPermissions, McpCalculator, StructuredOutput
