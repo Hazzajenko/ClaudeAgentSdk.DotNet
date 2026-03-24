@@ -34,7 +34,9 @@ public sealed record ClaudeClientOptions
     public bool EnableFileCheckpointing { get; init; }
     public IReadOnlyList<string>? SettingSources { get; init; }
     public IReadOnlyList<SdkPluginConfig>? Plugins { get; init; }
+    public string? Settings { get; init; }
     public SandboxSettings? Sandbox { get; init; }
+    public IReadOnlyList<string>? AddDirectories { get; init; }
     public IReadOnlyDictionary<string, string?>? ExtraArgs { get; init; }
     public JsonElement? OutputFormatSchema { get; init; }
     public IReadOnlyDictionary<string, McpServerConfig>? McpServers { get; init; }

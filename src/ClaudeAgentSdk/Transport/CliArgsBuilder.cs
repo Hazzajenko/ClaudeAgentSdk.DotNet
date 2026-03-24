@@ -227,10 +227,29 @@ internal static class CliArgsBuilder
             });
         }
 
-        if (options.Sandbox is not null)
+        if (options.Settings is not null && options.Sandbox is not null)
+        {
+            args.Add("--settings");
+            args.Add(MergeSettingsWithSandbox(options.Settings, options.Sandbox));
+        }
+        else if (options.Settings is not null)
+        {
+            args.Add("--settings");
+            args.Add(options.Settings);
+        }
+        else if (options.Sandbox is not null)
         {
             args.Add("--settings");
             args.Add(SerializeSandboxSettings(options.Sandbox));
+        }
+
+        if (options.AddDirectories is { Count: > 0 })
+        {
+            foreach (string dir in options.AddDirectories)
+            {
+                args.Add("--add-dir");
+                args.Add(dir);
+            }
         }
 
         if (options.Plugins is { Count: > 0 })
@@ -280,68 +299,9 @@ internal static class CliArgsBuilder
         using (var w = new Utf8JsonWriter(stream))
         {
             w.WriteStartObject();
-            w.WriteStartObject("sandbox");
-
-            if (sandbox.Enabled is { } enabled)
-                w.WriteBoolean("enabled", enabled);
-            if (sandbox.AutoAllowBashIfSandboxed is { } autoAllow)
-                w.WriteBoolean("autoAllowBashIfSandboxed", autoAllow);
-            if (sandbox.AllowUnsandboxedCommands is { } allowUnsandboxed)
-                w.WriteBoolean("allowUnsandboxedCommands", allowUnsandboxed);
-            if (sandbox.EnableWeakerNestedSandbox is { } weakerNested)
-                w.WriteBoolean("enableWeakerNestedSandbox", weakerNested);
-
-            if (sandbox.ExcludedCommands is { Count: > 0 })
-            {
-                w.WriteStartArray("excludedCommands");
-                foreach (string cmd in sandbox.ExcludedCommands)
-                    w.WriteStringValue(cmd);
-                w.WriteEndArray();
-            }
-
-            if (sandbox.Network is { } network)
-            {
-                w.WriteStartObject("network");
-                if (network.AllowLocalBinding is { } allowLocal)
-                    w.WriteBoolean("allowLocalBinding", allowLocal);
-                if (network.AllowAllUnixSockets is { } allowAll)
-                    w.WriteBoolean("allowAllUnixSockets", allowAll);
-                if (network.HttpProxyPort is { } httpProxy)
-                    w.WriteNumber("httpProxyPort", httpProxy);
-                if (network.SocksProxyPort is { } socksProxy)
-                    w.WriteNumber("socksProxyPort", socksProxy);
-                if (network.AllowUnixSockets is { Count: > 0 })
-                {
-                    w.WriteStartArray("allowUnixSockets");
-                    foreach (string sock in network.AllowUnixSockets)
-                        w.WriteStringValue(sock);
-                    w.WriteEndArray();
-                }
-                w.WriteEndObject();
-            }
-
-            if (sandbox.IgnoreViolations is { } violations)
-            {
-                w.WriteStartObject("ignoreViolations");
-                if (violations.File is { Count: > 0 })
-                {
-                    w.WriteStartArray("file");
-                    foreach (string f in violations.File)
-                        w.WriteStringValue(f);
-                    w.WriteEndArray();
-                }
-                if (violations.Network is { Count: > 0 })
-                {
-                    w.WriteStartArray("network");
-                    foreach (string n in violations.Network)
-                        w.WriteStringValue(n);
-                    w.WriteEndArray();
-                }
-                w.WriteEndObject();
-            }
-
-            w.WriteEndObject(); // sandbox
-            w.WriteEndObject(); // root
+            w.WritePropertyName("sandbox");
+            WriteSandboxObject(w, sandbox);
+            w.WriteEndObject();
         }
         return Encoding.UTF8.GetString(stream.ToArray());
     }
@@ -364,5 +324,96 @@ internal static class CliArgsBuilder
         }
 
         return envVars;
+    }
+
+    private static string MergeSettingsWithSandbox(string settings, SandboxSettings sandbox)
+    {
+        using var settingsDoc = JsonDocument.Parse(settings);
+
+        using var stream = new MemoryStream();
+        using (var w = new Utf8JsonWriter(stream))
+        {
+            w.WriteStartObject();
+
+            // Copy all existing properties from settings
+            foreach (var prop in settingsDoc.RootElement.EnumerateObject())
+            {
+                if (prop.Name == "sandbox")
+                    continue; // Sandbox option overwrites existing sandbox key
+                prop.WriteTo(w);
+            }
+
+            // Write sandbox from the typed SandboxSettings
+            w.WritePropertyName("sandbox");
+            WriteSandboxObject(w, sandbox);
+
+            w.WriteEndObject();
+        }
+        return Encoding.UTF8.GetString(stream.ToArray());
+    }
+
+    private static void WriteSandboxObject(Utf8JsonWriter w, SandboxSettings sandbox)
+    {
+        w.WriteStartObject();
+
+        if (sandbox.Enabled is { } enabled)
+            w.WriteBoolean("enabled", enabled);
+        if (sandbox.AutoAllowBashIfSandboxed is { } autoAllow)
+            w.WriteBoolean("autoAllowBashIfSandboxed", autoAllow);
+        if (sandbox.AllowUnsandboxedCommands is { } allowUnsandboxed)
+            w.WriteBoolean("allowUnsandboxedCommands", allowUnsandboxed);
+        if (sandbox.EnableWeakerNestedSandbox is { } weakerNested)
+            w.WriteBoolean("enableWeakerNestedSandbox", weakerNested);
+
+        if (sandbox.ExcludedCommands is { Count: > 0 })
+        {
+            w.WriteStartArray("excludedCommands");
+            foreach (string cmd in sandbox.ExcludedCommands)
+                w.WriteStringValue(cmd);
+            w.WriteEndArray();
+        }
+
+        if (sandbox.Network is { } network)
+        {
+            w.WriteStartObject("network");
+            if (network.AllowLocalBinding is { } allowLocal)
+                w.WriteBoolean("allowLocalBinding", allowLocal);
+            if (network.AllowAllUnixSockets is { } allowAll)
+                w.WriteBoolean("allowAllUnixSockets", allowAll);
+            if (network.HttpProxyPort is { } httpProxy)
+                w.WriteNumber("httpProxyPort", httpProxy);
+            if (network.SocksProxyPort is { } socksProxy)
+                w.WriteNumber("socksProxyPort", socksProxy);
+            if (network.AllowUnixSockets is { Count: > 0 })
+            {
+                w.WriteStartArray("allowUnixSockets");
+                foreach (string sock in network.AllowUnixSockets)
+                    w.WriteStringValue(sock);
+                w.WriteEndArray();
+            }
+            w.WriteEndObject();
+        }
+
+        if (sandbox.IgnoreViolations is { } violations)
+        {
+            w.WriteStartObject("ignoreViolations");
+            if (violations.File is { Count: > 0 })
+            {
+                w.WriteStartArray("file");
+                foreach (string f in violations.File)
+                    w.WriteStringValue(f);
+                w.WriteEndArray();
+            }
+            if (violations.Network is { Count: > 0 })
+            {
+                w.WriteStartArray("network");
+                foreach (string n in violations.Network)
+                    w.WriteStringValue(n);
+                w.WriteEndArray();
+            }
+            w.WriteEndObject();
+        }
+
+        w.WriteEndObject();
     }
 }

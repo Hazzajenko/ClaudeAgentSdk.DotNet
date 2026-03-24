@@ -435,4 +435,111 @@ public class CliArgsBuilderTests
 
         await Assert.That(args).DoesNotContain("--json-schema");
     }
+
+    [Test]
+    public async Task Settings_RawJson_PassedDirectly()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions
+        {
+            Settings = """{"permissions":{"allow":["Read"]}}"""
+        });
+
+        int idx = args.IndexOf("--settings");
+        await Assert.That(idx).IsGreaterThanOrEqualTo(0);
+        await Assert.That(args[idx + 1]).Contains("\"permissions\"");
+    }
+
+    [Test]
+    public async Task Settings_FilePath_PassedDirectly()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions
+        {
+            Settings = "/path/to/settings.json"
+        });
+
+        int idx = args.IndexOf("--settings");
+        await Assert.That(idx).IsGreaterThanOrEqualTo(0);
+        await Assert.That(args[idx + 1]).IsEqualTo("/path/to/settings.json");
+    }
+
+    [Test]
+    public async Task Settings_Default_OmitsArg()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions());
+
+        await Assert.That(args).DoesNotContain("--settings");
+    }
+
+    [Test]
+    public async Task Settings_WithSandbox_MergesSandboxIntoSettings()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions
+        {
+            Settings = """{"permissions":{"allow":["Read"]}}""",
+            Sandbox = new SandboxSettings { Enabled = true }
+        });
+
+        int idx = args.IndexOf("--settings");
+        await Assert.That(idx).IsGreaterThanOrEqualTo(0);
+
+        string json = args[idx + 1];
+        // Both permissions and sandbox present in merged output
+        await Assert.That(json).Contains("\"permissions\"");
+        await Assert.That(json).Contains("\"sandbox\"");
+        await Assert.That(json).Contains("\"enabled\":true");
+    }
+
+    [Test]
+    public async Task Settings_OnlyAppearsOnce_WhenBothSettingsAndSandbox()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions
+        {
+            Settings = """{"foo":"bar"}""",
+            Sandbox = new SandboxSettings { Enabled = true }
+        });
+
+        int count = args.Count(a => a == "--settings");
+        await Assert.That(count).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task AddDirectories_SingleDir_EmitsAddDirArg()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions
+        {
+            AddDirectories = ["/extra/project"]
+        });
+
+        int idx = args.IndexOf("--add-dir");
+        await Assert.That(idx).IsGreaterThanOrEqualTo(0);
+        await Assert.That(args[idx + 1]).IsEqualTo("/extra/project");
+    }
+
+    [Test]
+    public async Task AddDirectories_MultipleDirs_EmitsMultipleAddDirArgs()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions
+        {
+            AddDirectories = ["/dir1", "/dir2", "/dir3"]
+        });
+
+        var addDirIndices = new List<int>();
+        for (int i = 0; i < args.Count; i++)
+        {
+            if (args[i] == "--add-dir") addDirIndices.Add(i);
+        }
+
+        await Assert.That(addDirIndices).Count().IsEqualTo(3);
+        await Assert.That(args[addDirIndices[0] + 1]).IsEqualTo("/dir1");
+        await Assert.That(args[addDirIndices[1] + 1]).IsEqualTo("/dir2");
+        await Assert.That(args[addDirIndices[2] + 1]).IsEqualTo("/dir3");
+    }
+
+    [Test]
+    public async Task AddDirectories_Default_OmitsArg()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions());
+
+        await Assert.That(args).DoesNotContain("--add-dir");
+    }
 }
