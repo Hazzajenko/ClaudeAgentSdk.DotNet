@@ -5,6 +5,7 @@ using System.Threading.Channels;
 using ClaudeAgentSdk.Agents;
 using ClaudeAgentSdk.Control;
 using ClaudeAgentSdk.Hooks;
+using ClaudeAgentSdk.Json;
 using ClaudeAgentSdk.Mcp;
 using ClaudeAgentSdk.Mcp.Sdk;
 using ClaudeAgentSdk.Messages;
@@ -215,7 +216,12 @@ public sealed class ClaudeClient : IAsyncDisposable
     {
         if (!_hookCallbacks.TryGetValue(callbackId, out var callback))
             throw new InvalidOperationException($"No hook callback found for ID: {callbackId}");
-        return await callback(input, toolUseId, ct);
+
+        var typedInput = input.Deserialize(ClaudeJsonContext.Default.HookInput)
+            ?? throw new JsonException("Failed to deserialize hook input");
+
+        HookOutput output = await callback(typedInput, ct);
+        return output.ToJsonElement();
     }
 
     internal ControlProtocolHandler? ControlHandler => _controlHandler;

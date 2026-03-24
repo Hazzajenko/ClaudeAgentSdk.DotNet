@@ -1,9 +1,11 @@
 using System.Text.Json.Serialization;
+using ClaudeAgentSdk.Hooks;
 using ClaudeAgentSdk.Json.Wire;
 using ClaudeAgentSdk.Messages;
 
 namespace ClaudeAgentSdk.Json;
 
+[JsonSerializable(typeof(HookInput))]
 [JsonSerializable(typeof(ContentBlockWire))]
 [JsonSerializable(typeof(List<ContentBlockWire>))]
 [JsonSerializable(typeof(AssistantMessageWire))]

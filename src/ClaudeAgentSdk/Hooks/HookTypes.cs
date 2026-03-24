@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace ClaudeAgentSdk.Hooks;
 
 public enum HookEvent
@@ -17,11 +15,9 @@ public enum HookEvent
 }
 
 /// <summary>
-/// Hook callback. Receives raw JsonElement input for AOT safety.
-/// Return a JsonElement representing the hook output (e.g., {"continue": true}).
+/// Typed hook callback. Receives a strongly-typed <see cref="HookInput"/> and returns a <see cref="HookOutput"/>.
 /// </summary>
-public delegate Task<JsonElement> HookCallback(
-    JsonElement input, string? toolUseId, CancellationToken cancellationToken);
+public delegate Task<HookOutput> HookCallback(HookInput input, CancellationToken cancellationToken);
 
 public sealed record HookMatcher
 {

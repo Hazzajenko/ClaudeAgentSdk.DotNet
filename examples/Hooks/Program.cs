@@ -1,5 +1,3 @@
-using System.Text;
-using System.Text.Json;
 using ClaudeAgentSdk;
 using ClaudeAgentSdk.Hooks;
 using ClaudeAgentSdk.Messages;
@@ -28,56 +26,37 @@ void DisplayMessage(Message msg)
     }
 }
 
-// Build a JSON response for hook output (AOT-safe with Utf8JsonWriter)
-JsonElement BuildHookResponse(Action<Utf8JsonWriter> write)
-{
-    using var stream = new MemoryStream();
-    using (var w = new Utf8JsonWriter(stream))
-    {
-        w.WriteStartObject();
-        write(w);
-        w.WriteEndObject();
-    }
-
-    using var doc = JsonDocument.Parse(Encoding.UTF8.GetString(stream.ToArray()));
-    return doc.RootElement.Clone();
-}
-
 async Task PreToolUseExample()
 {
     Console.WriteLine("=== PreToolUse Example ===");
     Console.WriteLine("Demonstrates how PreToolUse can block dangerous bash commands.\n");
 
-    // Hook callback: block commands containing "foo.sh"
-    Task<JsonElement> CheckBashCommand(JsonElement input, string? toolUseId, CancellationToken ct)
+    Task<HookOutput> CheckBashCommand(HookInput input, CancellationToken ct)
     {
-        var toolName = input.TryGetProperty("tool_name", out var tn) ? tn.GetString() : "";
-        if (toolName != "Bash")
-            return Task.FromResult(BuildHookResponse(_ => { }));
+        if (input is not PreToolUseInput { ToolName: "Bash" } pre)
+            return Task.FromResult(HookOutput.Empty);
 
-        var toolInput = input.TryGetProperty("tool_input", out var ti) ? ti : default;
-        var command = toolInput.TryGetProperty("command", out var cmd) ? cmd.GetString() ?? "" : "";
+        string command = pre.ToolInput.TryGetProperty("command", out var cmd) ? cmd.GetString() ?? "" : "";
 
         if (command.Contains("foo.sh"))
         {
             Console.WriteLine($"  [Hook] Blocked command: {command}");
-            return Task.FromResult(BuildHookResponse(w =>
+            return Task.FromResult(new HookOutput
             {
-                w.WriteStartObject("hookSpecificOutput");
-                w.WriteString("hookEventName", "PreToolUse");
-                w.WriteString("permissionDecision", "deny");
-                w.WriteString("permissionDecisionReason", "Command contains blocked pattern: foo.sh");
-                w.WriteEndObject();
-            }));
+                HookSpecificOutput = new PreToolUseOutput
+                {
+                    PermissionDecision = "deny",
+                    PermissionDecisionReason = "Command contains blocked pattern: foo.sh",
+                },
+            });
         }
 
-        return Task.FromResult(BuildHookResponse(_ => { }));
+        return Task.FromResult(HookOutput.Empty);
     }
 
     var options = new ClaudeClientOptions
     {
         AllowedTools = ["Bash"],
-        MessageCallback = msg => Console.Error.WriteLine(Claude.FormatMessage(msg)),
         Hooks = new Dictionary<HookEvent, IReadOnlyList<HookMatcher>>
         {
             [HookEvent.PreToolUse] =
@@ -115,20 +94,19 @@ async Task UserPromptSubmitExample()
     Console.WriteLine("=== UserPromptSubmit Example ===");
     Console.WriteLine("Adds custom context when a session starts.\n");
 
-    Task<JsonElement> AddCustomInstructions(JsonElement input, string? toolUseId, CancellationToken ct)
+    Task<HookOutput> AddCustomInstructions(HookInput input, CancellationToken ct)
     {
-        return Task.FromResult(BuildHookResponse(w =>
+        return Task.FromResult(new HookOutput
         {
-            w.WriteStartObject("hookSpecificOutput");
-            w.WriteString("hookEventName", "UserPromptSubmit");
-            w.WriteString("additionalContext", "My favorite color is hot pink");
-            w.WriteEndObject();
-        }));
+            HookSpecificOutput = new UserPromptSubmitOutput
+            {
+                AdditionalContext = "My favorite color is hot pink",
+            },
+        });
     }
 
     var options = new ClaudeClientOptions
     {
-        MessageCallback = msg => Console.Error.WriteLine(Claude.FormatMessage(msg)),
         Hooks = new Dictionary<HookEvent, IReadOnlyList<HookMatcher>>
         {
             [HookEvent.UserPromptSubmit] =
@@ -156,31 +134,35 @@ async Task PostToolUseExample()
     Console.WriteLine("=== PostToolUse Example ===");
     Console.WriteLine("Reviews tool output and adds context on errors.\n");
 
-    Task<JsonElement> ReviewToolOutput(JsonElement input, string? toolUseId, CancellationToken ct)
+    Task<HookOutput> ReviewToolOutput(HookInput input, CancellationToken ct)
     {
-        var toolResponse = input.TryGetProperty("tool_response", out var tr) ? tr.GetString() ?? "" : "";
+        if (input is not PostToolUseInput post)
+            return Task.FromResult(HookOutput.Empty);
+
+        string toolResponse = post.ToolResponse.ValueKind == System.Text.Json.JsonValueKind.String
+            ? post.ToolResponse.GetString() ?? ""
+            : post.ToolResponse.ToString();
 
         if (toolResponse.Contains("No such file or directory", StringComparison.OrdinalIgnoreCase)
             || toolResponse.Contains("error", StringComparison.OrdinalIgnoreCase))
         {
-            return Task.FromResult(BuildHookResponse(w =>
+            return Task.FromResult(new HookOutput
             {
-                w.WriteString("systemMessage", "The command produced an error");
-                w.WriteString("reason", "Tool execution failed - consider checking the command syntax");
-                w.WriteStartObject("hookSpecificOutput");
-                w.WriteString("hookEventName", "PostToolUse");
-                w.WriteString("additionalContext", "The command encountered an error. Try a different approach.");
-                w.WriteEndObject();
-            }));
+                SystemMessage = "The command produced an error",
+                Reason = "Tool execution failed - consider checking the command syntax",
+                HookSpecificOutput = new PostToolUseOutput
+                {
+                    AdditionalContext = "The command encountered an error. Try a different approach.",
+                },
+            });
         }
 
-        return Task.FromResult(BuildHookResponse(_ => { }));
+        return Task.FromResult(HookOutput.Empty);
     }
 
     var options = new ClaudeClientOptions
     {
         AllowedTools = ["Bash"],
-        MessageCallback = msg => Console.Error.WriteLine(Claude.FormatMessage(msg)),
         Hooks = new Dictionary<HookEvent, IReadOnlyList<HookMatcher>>
         {
             [HookEvent.PostToolUse] =
