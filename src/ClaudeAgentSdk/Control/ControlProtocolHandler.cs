@@ -1,6 +1,9 @@
 using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
+using ClaudeAgentSdk.Hooks;
+using ClaudeAgentSdk.Json;
+using ClaudeAgentSdk.Permissions;
 using ClaudeAgentSdk.Transport;
 
 namespace ClaudeAgentSdk.Control;
@@ -18,13 +21,15 @@ internal sealed class ControlProtocolHandler
 
     /// <summary>
     /// Callback for incoming hook_callback control requests. Set during initialize.
+    /// Receives callbackId and typed HookInput; returns typed HookOutput.
     /// </summary>
-    public Func<string, JsonElement, string?, CancellationToken, Task<JsonElement>>? OnHookCallback { get; set; }
+    public Func<string, HookInput, CancellationToken, Task<HookOutput>>? OnHookCallback { get; set; }
 
     /// <summary>
     /// Callback for incoming can_use_tool control requests. Set when CanUseTool is configured.
+    /// Receives extracted tool name, input, and context; returns typed PermissionResult.
     /// </summary>
-    public Func<JsonElement, CancellationToken, Task<JsonElement>>? OnCanUseTool { get; set; }
+    public CanUseToolCallback? OnCanUseTool { get; set; }
 
     /// <summary>
     /// Callback for incoming mcp_message control requests. Routes to SDK MCP servers.
@@ -108,13 +113,29 @@ internal sealed class ControlProtocolHandler
             if (subtype == "hook_callback" && OnHookCallback is not null)
             {
                 string callbackId = request.TryGetProperty("callback_id", out var cb) ? cb.GetString() ?? "" : "";
-                JsonElement input = request.TryGetProperty("input", out var inp) ? inp.Clone() : default;
-                string? toolUseId = request.TryGetProperty("tool_use_id", out var tui) ? tui.GetString() : null;
-                responseData = await OnHookCallback(callbackId, input, toolUseId, cancellationToken);
+                JsonElement inputElement = request.TryGetProperty("input", out var inp) ? inp.Clone() : default;
+
+                var typedInput = inputElement.Deserialize(ClaudeJsonContext.Default.HookInput)
+                    ?? throw new JsonException("Failed to deserialize hook input");
+
+                HookOutput output = await OnHookCallback(callbackId, typedInput, cancellationToken);
+                responseData = output.ToJsonElement();
             }
             else if (subtype == "can_use_tool" && OnCanUseTool is not null)
             {
-                responseData = await OnCanUseTool(request.Clone(), cancellationToken);
+                string toolName = request.TryGetProperty("tool_name", out var tn) ? tn.GetString() ?? "" : "";
+                JsonElement input = request.TryGetProperty("input", out var inp) ? inp.Clone() : default;
+
+                var suggestions = new List<JsonElement>();
+                if (request.TryGetProperty("permission_suggestions", out var ps) && ps.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var s in ps.EnumerateArray())
+                        suggestions.Add(s.Clone());
+                }
+
+                var context = new ToolPermissionContext { Suggestions = suggestions };
+                PermissionResult result = await OnCanUseTool(toolName, input, context, cancellationToken);
+                responseData = SerializePermissionResult(result, input);
             }
             else if (subtype == "mcp_message" && OnMcpMessage is not null)
             {
@@ -226,6 +247,36 @@ internal sealed class ControlProtocolHandler
             w.WriteEndObject();
         }
         await WriteAsync(Encoding.UTF8.GetString(stream.ToArray()), ct);
+    }
+
+    private static JsonElement SerializePermissionResult(PermissionResult result, JsonElement originalInput)
+    {
+        using var stream = new MemoryStream();
+        using (var w = new Utf8JsonWriter(stream))
+        {
+            w.WriteStartObject();
+            switch (result)
+            {
+                case PermissionResultAllow allow:
+                    w.WriteString("behavior", "allow");
+                    w.WritePropertyName("updatedInput");
+                    if (allow.UpdatedInput is { } updatedInput)
+                        updatedInput.WriteTo(w);
+                    else
+                        originalInput.WriteTo(w);
+                    break;
+
+                case PermissionResultDeny deny:
+                    w.WriteString("behavior", "deny");
+                    w.WriteString("message", deny.Message);
+                    if (deny.Interrupt)
+                        w.WriteBoolean("interrupt", true);
+                    break;
+            }
+            w.WriteEndObject();
+        }
+        using var doc = JsonDocument.Parse(Encoding.UTF8.GetString(stream.ToArray()));
+        return doc.RootElement.Clone();
     }
 
     private static JsonElement BuildMcpResponseWrapper(JsonElement mcpResponse)

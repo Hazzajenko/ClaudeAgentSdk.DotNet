@@ -1,5 +1,7 @@
 using System.Text.Json;
 using ClaudeAgentSdk.Control;
+using ClaudeAgentSdk.Hooks;
+using ClaudeAgentSdk.Permissions;
 using ClaudeAgentSdk.Transport;
 using NSubstitute;
 
@@ -104,7 +106,7 @@ public class ControlProtocolHandlerTests
     }
 
     [Test]
-    public async Task HandleControlRequestAsync_HookCallback_InvokesCallback()
+    public async Task HandleControlRequestAsync_HookCallback_DeserializesTypedInput()
     {
         var transport = Substitute.For<ITransport>();
         transport.WriteAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
@@ -112,17 +114,12 @@ public class ControlProtocolHandlerTests
         var handler = new ControlProtocolHandler(transport);
 
         string? receivedCallbackId = null;
-        handler.OnHookCallback = (callbackId, input, toolUseId, ct) =>
+        HookInput? receivedInput = null;
+        handler.OnHookCallback = (callbackId, input, ct) =>
         {
             receivedCallbackId = callbackId;
-            using var stream = new MemoryStream();
-            using (var w = new Utf8JsonWriter(stream))
-            {
-                w.WriteStartObject();
-                w.WriteBoolean("continue", true);
-                w.WriteEndObject();
-            }
-            return Task.FromResult(JsonDocument.Parse(System.Text.Encoding.UTF8.GetString(stream.ToArray())).RootElement.Clone());
+            receivedInput = input;
+            return Task.FromResult(HookOutput.Empty);
         };
 
         using var requestDoc = JsonDocument.Parse("""
@@ -131,8 +128,15 @@ public class ControlProtocolHandlerTests
                 "request": {
                     "subtype": "hook_callback",
                     "callback_id": "hook_0",
-                    "input": {"tool_name": "Bash"},
-                    "tool_use_id": "tool_1"
+                    "input": {
+                        "hook_event_name": "PreToolUse",
+                        "session_id": "sess-1",
+                        "transcript_path": "/tmp/t.jsonl",
+                        "cwd": "/home/user",
+                        "tool_name": "Bash",
+                        "tool_input": {"command": "echo hello"},
+                        "tool_use_id": "toolu_01"
+                    }
                 }
             }
             """);
@@ -140,8 +144,94 @@ public class ControlProtocolHandlerTests
         await handler.HandleControlRequestAsync(requestDoc.RootElement, CancellationToken.None);
 
         await Assert.That(receivedCallbackId).IsEqualTo("hook_0");
-        // Verify response was written back
-        await transport.Received(1).WriteAsync(Arg.Is<string>(s => s.Contains("success")), Arg.Any<CancellationToken>());
+        await Assert.That(receivedInput).IsTypeOf<PreToolUseInput>();
+        var pre = (PreToolUseInput)receivedInput!;
+        await Assert.That(pre.ToolName).IsEqualTo("Bash");
+        await Assert.That(pre.ToolUseId).IsEqualTo("toolu_01");
+        await Assert.That(pre.SessionId).IsEqualTo("sess-1");
+    }
+
+    [Test]
+    public async Task HandleControlRequestAsync_HookCallback_SerializesOutputToCamelCase()
+    {
+        var transport = Substitute.For<ITransport>();
+        var writtenJson = new List<string>();
+        transport.WriteAsync(Arg.Do<string>(s => writtenJson.Add(s)), Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        var handler = new ControlProtocolHandler(transport);
+
+        handler.OnHookCallback = (callbackId, input, ct) =>
+        {
+            return Task.FromResult(new HookOutput
+            {
+                HookSpecificOutput = new PreToolUseOutput
+                {
+                    PermissionDecision = "deny",
+                    PermissionDecisionReason = "blocked"
+                }
+            });
+        };
+
+        using var requestDoc = JsonDocument.Parse("""
+            {
+                "request_id": "req_2",
+                "request": {
+                    "subtype": "hook_callback",
+                    "callback_id": "hook_0",
+                    "input": {
+                        "hook_event_name": "PreToolUse",
+                        "session_id": "s",
+                        "transcript_path": "/t",
+                        "cwd": "/c",
+                        "tool_name": "Bash",
+                        "tool_input": {},
+                        "tool_use_id": "t1"
+                    }
+                }
+            }
+            """);
+
+        await handler.HandleControlRequestAsync(requestDoc.RootElement, CancellationToken.None);
+
+        await Assert.That(writtenJson.Count).IsEqualTo(1);
+        using var sentDoc = JsonDocument.Parse(writtenJson[0]);
+        var responseData = sentDoc.RootElement.GetProperty("response").GetProperty("response");
+        // camelCase: hookSpecificOutput, permissionDecision
+        var hookSpecific = responseData.GetProperty("hookSpecificOutput");
+        await Assert.That(hookSpecific.GetProperty("permissionDecision").GetString()).IsEqualTo("deny");
+        await Assert.That(hookSpecific.GetProperty("permissionDecisionReason").GetString()).IsEqualTo("blocked");
+    }
+
+    [Test]
+    public async Task HandleControlRequestAsync_HookCallback_MalformedInput_WritesError()
+    {
+        var transport = Substitute.For<ITransport>();
+        var writtenJson = new List<string>();
+        transport.WriteAsync(Arg.Do<string>(s => writtenJson.Add(s)), Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        var handler = new ControlProtocolHandler(transport);
+        handler.OnHookCallback = (callbackId, input, ct) => Task.FromResult(HookOutput.Empty);
+
+        // Missing hook_event_name — deserialization should fail
+        using var requestDoc = JsonDocument.Parse("""
+            {
+                "request_id": "req_3",
+                "request": {
+                    "subtype": "hook_callback",
+                    "callback_id": "hook_0",
+                    "input": {"not_a_valid_field": true}
+                }
+            }
+            """);
+
+        await handler.HandleControlRequestAsync(requestDoc.RootElement, CancellationToken.None);
+
+        await Assert.That(writtenJson.Count).IsEqualTo(1);
+        using var sentDoc = JsonDocument.Parse(writtenJson[0]);
+        var response = sentDoc.RootElement.GetProperty("response");
+        await Assert.That(response.GetProperty("subtype").GetString()).IsEqualTo("error");
     }
 
     [Test]
@@ -186,6 +276,126 @@ public class ControlProtocolHandlerTests
 
         var responseData = response.GetProperty("response");
         await Assert.That(responseData.TryGetProperty("mcp_response", out _)).IsTrue();
+    }
+
+    [Test]
+    public async Task HandleControlRequestAsync_CanUseTool_Allow_WritesCorrectResponse()
+    {
+        var transport = Substitute.For<ITransport>();
+        var writtenJson = new List<string>();
+        transport.WriteAsync(Arg.Do<string>(s => writtenJson.Add(s)), Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        var handler = new ControlProtocolHandler(transport);
+
+        string? receivedToolName = null;
+        handler.OnCanUseTool = (toolName, input, context, ct) =>
+        {
+            receivedToolName = toolName;
+            return Task.FromResult<PermissionResult>(new PermissionResultAllow
+            {
+                UpdatedInput = input
+            });
+        };
+
+        using var requestDoc = JsonDocument.Parse("""
+            {
+                "request_id": "req_perm_1",
+                "request": {
+                    "subtype": "can_use_tool",
+                    "tool_name": "Bash",
+                    "input": {"command": "ls"},
+                    "permission_suggestions": []
+                }
+            }
+            """);
+
+        await handler.HandleControlRequestAsync(requestDoc.RootElement, CancellationToken.None);
+
+        await Assert.That(receivedToolName).IsEqualTo("Bash");
+        await Assert.That(writtenJson.Count).IsEqualTo(1);
+        using var sentDoc = JsonDocument.Parse(writtenJson[0]);
+        var responseData = sentDoc.RootElement.GetProperty("response").GetProperty("response");
+        await Assert.That(responseData.GetProperty("behavior").GetString()).IsEqualTo("allow");
+        await Assert.That(responseData.GetProperty("updatedInput").GetProperty("command").GetString()).IsEqualTo("ls");
+    }
+
+    [Test]
+    public async Task HandleControlRequestAsync_CanUseTool_Deny_WritesCorrectResponse()
+    {
+        var transport = Substitute.For<ITransport>();
+        var writtenJson = new List<string>();
+        transport.WriteAsync(Arg.Do<string>(s => writtenJson.Add(s)), Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        var handler = new ControlProtocolHandler(transport);
+
+        handler.OnCanUseTool = (toolName, input, context, ct) =>
+        {
+            return Task.FromResult<PermissionResult>(new PermissionResultDeny
+            {
+                Message = "Blocked",
+                Interrupt = true
+            });
+        };
+
+        using var requestDoc = JsonDocument.Parse("""
+            {
+                "request_id": "req_perm_2",
+                "request": {
+                    "subtype": "can_use_tool",
+                    "tool_name": "Bash",
+                    "input": {"command": "rm -rf /"},
+                    "permission_suggestions": []
+                }
+            }
+            """);
+
+        await handler.HandleControlRequestAsync(requestDoc.RootElement, CancellationToken.None);
+
+        await Assert.That(writtenJson.Count).IsEqualTo(1);
+        using var sentDoc = JsonDocument.Parse(writtenJson[0]);
+        var responseData = sentDoc.RootElement.GetProperty("response").GetProperty("response");
+        await Assert.That(responseData.GetProperty("behavior").GetString()).IsEqualTo("deny");
+        await Assert.That(responseData.GetProperty("message").GetString()).IsEqualTo("Blocked");
+        await Assert.That(responseData.GetProperty("interrupt").GetBoolean()).IsTrue();
+    }
+
+    [Test]
+    public async Task HandleControlRequestAsync_CanUseTool_Allow_EchoesOriginalInput_WhenNoOverride()
+    {
+        var transport = Substitute.For<ITransport>();
+        var writtenJson = new List<string>();
+        transport.WriteAsync(Arg.Do<string>(s => writtenJson.Add(s)), Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        var handler = new ControlProtocolHandler(transport);
+
+        handler.OnCanUseTool = (toolName, input, context, ct) =>
+        {
+            // No UpdatedInput — should echo original
+            return Task.FromResult<PermissionResult>(new PermissionResultAllow());
+        };
+
+        using var requestDoc = JsonDocument.Parse("""
+            {
+                "request_id": "req_perm_3",
+                "request": {
+                    "subtype": "can_use_tool",
+                    "tool_name": "Read",
+                    "input": {"file_path": "/tmp/test.txt"}
+                }
+            }
+            """);
+
+        await handler.HandleControlRequestAsync(requestDoc.RootElement, CancellationToken.None);
+
+        await Assert.That(writtenJson.Count).IsEqualTo(1);
+        using var sentDoc = JsonDocument.Parse(writtenJson[0]);
+        var responseData = sentDoc.RootElement.GetProperty("response").GetProperty("response");
+        await Assert.That(responseData.GetProperty("behavior").GetString()).IsEqualTo("allow");
+        // Original input echoed back
+        await Assert.That(responseData.GetProperty("updatedInput").GetProperty("file_path").GetString()).IsEqualTo("/tmp/test.txt");
     }
 
     [Test]
