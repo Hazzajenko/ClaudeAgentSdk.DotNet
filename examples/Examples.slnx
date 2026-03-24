@@ -11,5 +11,6 @@
   <Project Path="StructuredOutput/StructuredOutput.csproj" />
   <Project Path="SystemPrompt/SystemPrompt.csproj" />
   <Project Path="ToolPermissions/ToolPermissions.csproj" />
+  <Project Path="TestingWithTransport/TestingWithTransport.csproj" />
   <Project Path="ToolsConfiguration/ToolsConfiguration.csproj" />
 </Solution>
