@@ -5,6 +5,7 @@ using ClaudeAgentSdk.Messages;
 
 namespace ClaudeAgentSdk.Json;
 
+[JsonSerializable(typeof(Usage))]
 [JsonSerializable(typeof(HookInput))]
 [JsonSerializable(typeof(ContentBlockWire))]
 [JsonSerializable(typeof(List<ContentBlockWire>))]

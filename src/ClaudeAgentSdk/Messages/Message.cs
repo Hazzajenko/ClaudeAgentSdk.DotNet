@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace ClaudeAgentSdk.Messages;
 
@@ -22,7 +23,7 @@ public sealed record AssistantMessage : Message
     public required string Model { get; init; }
     public string? ParentToolUseId { get; init; }
     public string? Error { get; init; }
-    public JsonElement? Usage { get; init; }
+    public Usage? Usage { get; init; }
 }
 
 public record SystemMessage : Message
@@ -41,7 +42,7 @@ public sealed record ResultMessage : Message
     public required string SessionId { get; init; }
     public string? StopReason { get; init; }
     public double? TotalCostUsd { get; init; }
-    public JsonElement? Usage { get; init; }
+    public Usage? Usage { get; init; }
     public string? Result { get; init; }
     public JsonElement? StructuredOutput { get; init; }
 }
@@ -52,6 +53,22 @@ public sealed record StreamEvent : Message
     public required string SessionId { get; init; }
     public required JsonElement Event { get; init; }
     public string? ParentToolUseId { get; init; }
+}
+
+/// <summary>
+/// Token usage statistics from the Anthropic API.
+/// All fields nullable — the CLI may emit a subset (e.g. result messages may only have input_tokens).
+/// Unknown fields from future API versions are captured in <see cref="ExtensionData"/>.
+/// </summary>
+public sealed class Usage
+{
+    public int? InputTokens { get; set; }
+    public int? OutputTokens { get; set; }
+    public int? CacheCreationInputTokens { get; set; }
+    public int? CacheReadInputTokens { get; set; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }
 
 public sealed record RateLimitInfo

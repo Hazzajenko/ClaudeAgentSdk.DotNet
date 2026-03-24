@@ -1,4 +1,5 @@
 using System.Text.Json;
+using ClaudeAgentSdk.Messages;
 
 namespace ClaudeAgentSdk.Json.Wire;
 
@@ -13,7 +14,7 @@ internal sealed record AssistantMessageBodyWire
 {
     public required List<ContentBlockWire> Content { get; init; }
     public required string Model { get; init; }
-    public JsonElement? Usage { get; init; }
+    public Usage? Usage { get; init; }
 }
 
 internal sealed record UserMessageWire
@@ -45,7 +46,7 @@ internal sealed record ResultMessageWire
     public required string SessionId { get; init; }
     public string? StopReason { get; init; }
     public double? TotalCostUsd { get; init; }
-    public JsonElement? Usage { get; init; }
+    public Usage? Usage { get; init; }
     public string? Result { get; init; }
     public JsonElement? StructuredOutput { get; init; }
 }

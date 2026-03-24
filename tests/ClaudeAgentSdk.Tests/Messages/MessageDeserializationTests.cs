@@ -113,7 +113,61 @@ public class MessageDeserializationTests
         await Assert.That(msg.ParentToolUseId).IsEqualTo("toolu_parent");
         await Assert.That(msg.Error).IsEqualTo("rate_limit");
         await Assert.That(msg.Usage).IsNotNull();
-        await Assert.That(msg.Usage!.Value.GetProperty("input_tokens").GetInt32()).IsEqualTo(10);
+        await Assert.That(msg.Usage!.InputTokens).IsEqualTo(10);
+        await Assert.That(msg.Usage!.OutputTokens).IsEqualTo(5);
+    }
+
+    [Test]
+    public async Task Usage_UnknownFields_CapturedInExtensionData()
+    {
+        const string json = """
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [{"type": "text", "text": "hi"}],
+                    "model": "claude-sonnet-4-5-20250929",
+                    "usage": {
+                        "input_tokens": 100,
+                        "output_tokens": 50,
+                        "server_tool_use_input_tokens": 25,
+                        "some_future_field": 999
+                    }
+                }
+            }
+            """;
+
+        var msg = (AssistantMessage)ClaudeJsonOptions.DeserializeMessage(json)!;
+
+        await Assert.That(msg.Usage!.InputTokens).IsEqualTo(100);
+        await Assert.That(msg.Usage!.OutputTokens).IsEqualTo(50);
+        await Assert.That(msg.Usage!.ExtensionData).IsNotNull();
+        await Assert.That(msg.Usage!.ExtensionData!.ContainsKey("server_tool_use_input_tokens")).IsTrue();
+        await Assert.That(msg.Usage!.ExtensionData!["server_tool_use_input_tokens"].GetInt32()).IsEqualTo(25);
+        await Assert.That(msg.Usage!.ExtensionData!["some_future_field"].GetInt32()).IsEqualTo(999);
+    }
+
+    [Test]
+    public async Task ResultMessage_Usage_PartialFields_Deserializes()
+    {
+        const string json = """
+            {
+                "type": "result",
+                "subtype": "success",
+                "is_error": false,
+                "duration_ms": 1000,
+                "duration_api_ms": 800,
+                "num_turns": 1,
+                "session_id": "sess-1",
+                "usage": {"input_tokens": 42}
+            }
+            """;
+
+        var msg = (ResultMessage)ClaudeJsonOptions.DeserializeMessage(json)!;
+
+        await Assert.That(msg.Usage).IsNotNull();
+        await Assert.That(msg.Usage!.InputTokens).IsEqualTo(42);
+        await Assert.That(msg.Usage!.OutputTokens).IsNull();
+        await Assert.That(msg.Usage!.CacheCreationInputTokens).IsNull();
     }
 
     [Test]
