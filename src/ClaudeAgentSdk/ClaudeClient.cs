@@ -214,6 +214,8 @@ public sealed class ClaudeClient : IAsyncDisposable
         else
         {
             string cliPath = CliFinder.Find(_options.CliPath);
+            await CliVersionChecker.CheckAsync(cliPath, cancellationToken);
+
             var args = CliArgsBuilder.Build(_options);
             var envVars = CliArgsBuilder.BuildEnvironmentVariables(_options);
 
