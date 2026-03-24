@@ -15,6 +15,7 @@ internal sealed class CliTransport : ITransport
     private readonly string? _workingDirectory;
     private readonly IDictionary<string, string>? _environmentVariables;
     private readonly Action<string>? _stderrCallback;
+    private readonly bool _redirectStdin;
     private Process? _process;
     private bool _disposed;
 
@@ -23,13 +24,15 @@ internal sealed class CliTransport : ITransport
         IReadOnlyList<string> args,
         string? workingDirectory = null,
         IDictionary<string, string>? environmentVariables = null,
-        Action<string>? stderrCallback = null)
+        Action<string>? stderrCallback = null,
+        bool redirectStdin = true)
     {
         _cliPath = cliPath;
         _args = args;
         _workingDirectory = workingDirectory;
         _environmentVariables = environmentVariables;
         _stderrCallback = stderrCallback;
+        _redirectStdin = redirectStdin;
     }
 
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
@@ -42,9 +45,9 @@ internal sealed class CliTransport : ITransport
         var startInfo = new ProcessStartInfo
         {
             FileName = _cliPath,
-            RedirectStandardInput = true,
+            RedirectStandardInput = _redirectStdin,
             RedirectStandardOutput = true,
-            RedirectStandardError = true,
+            RedirectStandardError = _redirectStdin, // only redirect stderr when stdin is redirected (streaming mode)
             UseShellExecute = false,
             CreateNoWindow = true,
         };
@@ -67,7 +70,8 @@ internal sealed class CliTransport : ITransport
             }
         }
 
-        startInfo.Environment["CLAUDE_CODE_ENTRYPOINT"] = "sdk-dotnet";
+        if (_redirectStdin)
+            startInfo.Environment["CLAUDE_CODE_ENTRYPOINT"] = "sdk-dotnet";
 
         try
         {
@@ -81,8 +85,8 @@ internal sealed class CliTransport : ITransport
                 ex);
         }
 
-        // Read stderr in background
-        if (_stderrCallback is not null)
+        // Read stderr in background (only when stderr is redirected)
+        if (_stderrCallback is not null && _redirectStdin)
         {
             _ = Task.Run(() => ReadStderrAsync(cancellationToken), cancellationToken);
         }
@@ -115,7 +119,8 @@ internal sealed class CliTransport : ITransport
 
     public Task EndInputAsync(CancellationToken cancellationToken = default)
     {
-        _process?.StandardInput.Close();
+        if (_redirectStdin)
+            _process?.StandardInput.Close();
         return Task.CompletedTask;
     }
 
@@ -133,13 +138,16 @@ internal sealed class CliTransport : ITransport
         }
 
         // Close stdin to signal end of input
-        try
+        if (_redirectStdin)
         {
-            _process.StandardInput.Close();
-        }
-        catch
-        {
-            // Ignore — process may have already exited
+            try
+            {
+                _process.StandardInput.Close();
+            }
+            catch
+            {
+                // Ignore — process may have already exited
+            }
         }
 
         // Wait for graceful shutdown, then kill

@@ -9,6 +9,79 @@ namespace ClaudeAgentSdk.Transport;
 /// </summary>
 internal static class CliArgsBuilder
 {
+    /// <summary>
+    /// Build args for one-shot print mode (-p). Prompt goes on command line, no stdin needed.
+    /// Only adds flags that were explicitly set — avoids --system-prompt "" and --setting-sources ""
+    /// which can interfere with the CLI's internal tool handling.
+    /// </summary>
+    public static List<string> BuildForPrintMode(string prompt, ClaudeClientOptions options)
+    {
+        var args = new List<string>
+        {
+            "-p", prompt,
+            "--output-format", "stream-json",
+            "--verbose"
+        };
+
+        // Only add system-prompt if explicitly set (non-null, non-empty)
+        if (!string.IsNullOrEmpty(options.SystemPrompt))
+        {
+            args.Add("--system-prompt");
+            args.Add(options.SystemPrompt);
+        }
+
+        if (options.MaxTurns is not null)
+        {
+            args.Add("--max-turns");
+            args.Add(options.MaxTurns.Value.ToString());
+        }
+
+        if (options.Model is not null)
+        {
+            args.Add("--model");
+            args.Add(options.Model);
+        }
+
+        if (options.OutputFormatSchema is { } schema)
+        {
+            args.Add("--json-schema");
+            args.Add(schema.GetRawText());
+        }
+
+        if (options.MaxBudgetUsd is not null)
+        {
+            args.Add("--max-budget-usd");
+            args.Add(options.MaxBudgetUsd.Value.ToString());
+        }
+
+        if (options.PermissionMode != PermissionMode.Default)
+        {
+            args.Add("--permission-mode");
+            args.Add(options.PermissionMode switch
+            {
+                PermissionMode.AcceptEdits => "acceptEdits",
+                PermissionMode.Plan => "plan",
+                PermissionMode.BypassPermissions => "bypassPermissions",
+                _ => "default"
+            });
+        }
+
+        if (options.ExtraArgs is { Count: > 0 })
+        {
+            foreach (var (flag, value) in options.ExtraArgs)
+            {
+                args.Add($"--{flag}");
+                if (value is not null)
+                    args.Add(value);
+            }
+        }
+
+        return args;
+    }
+
+    /// <summary>
+    /// Build args for streaming mode (--input-format stream-json). Used by ClaudeClient.
+    /// </summary>
     public static List<string> Build(ClaudeClientOptions options)
     {
         var args = new List<string>
@@ -18,6 +91,12 @@ internal static class CliArgsBuilder
             "--input-format", "stream-json"
         };
 
+        AddCommonArgs(args, options);
+        return args;
+    }
+
+    private static void AddCommonArgs(List<string> args, ClaudeClientOptions options)
+    {
         if (options.SystemPrompt is not null)
         {
             args.Add("--system-prompt");
@@ -193,8 +272,6 @@ internal static class CliArgsBuilder
         args.Add(options.SettingSources is { Count: > 0 }
             ? string.Join(",", options.SettingSources)
             : "");
-
-        return args;
     }
 
     private static string SerializeSandboxSettings(SandboxSettings sandbox)

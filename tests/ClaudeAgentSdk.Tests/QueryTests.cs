@@ -10,41 +10,56 @@ namespace ClaudeAgentSdk.Tests;
 /// </summary>
 public class QueryTests
 {
-    private const string StructuredOutputFlow = """
+    private const string InitControlResponse =
+        """{"type":"control_response","response":{"subtype":"success","request_id":"init_1","response":{}}}""";
+
+    private const string StructuredOutputMessages =
+        """
         {"type":"assistant","message":{"content":[{"type":"tool_use","id":"so_1","name":"StructuredOutput","input":{"content":{"name":"Alice","age":30}}}],"model":"claude-sonnet-4-5-20250929"}}
         {"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"so_1","content":"Structured output provided successfully"}]},"parent_tool_use_id":"so_1"}
         {"type":"assistant","message":{"content":[{"type":"text","text":"Extracted the person info."}],"model":"claude-sonnet-4-5-20250929"}}
         {"type":"result","subtype":"success","duration_ms":200,"duration_api_ms":180,"is_error":false,"num_turns":2,"session_id":"s1","structured_output":{"name":"Alice","age":30}}
         """;
 
-    [Test]
-    public async Task QueryCoreAsync_DoesNotCloseStdinBeforeResult()
+    /// <summary>
+    /// Creates a MockTransport that simulates the CLI's initialize → user message → response flow.
+    /// </summary>
+    private static Transport.MockTransport CreateStreamingMock(string contentMessages)
     {
-        var transport = new Transport.MockTransport(StructuredOutputFlow);
+        var transport = new Transport.MockTransport("");
 
-        var messages = new List<Message>();
-        await foreach (var msg in Claude.QueryCoreAsync("Extract person info", transport))
+        transport.OnWrite = json =>
         {
-            messages.Add(msg);
-        }
+            if (json.Contains("initialize"))
+            {
+                transport.EnqueueOutput(InitControlResponse);
+            }
+            else if (json.Contains("\"type\":\"user\""))
+            {
+                foreach (var line in contentMessages.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                {
+                    if (line.Length > 0)
+                        transport.EnqueueOutput(line);
+                }
+                transport.Complete();
+            }
+        };
 
-        await Assert.That(transport.EndInputCalled).IsFalse();
-        await Assert.That(messages.OfType<ResultMessage>().First().StructuredOutput).IsNotNull();
+        return transport;
     }
 
     [Test]
     public async Task QueryCoreAsync_StopsAfterResultMessage()
     {
-        // Messages after ResultMessage should not be yielded
-        var input = """
+        var contentMessages = """
             {"type":"assistant","message":{"content":[{"type":"text","text":"first"}],"model":"m"}}
             {"type":"result","subtype":"success","duration_ms":100,"duration_api_ms":90,"is_error":false,"num_turns":1,"session_id":"s1"}
             {"type":"assistant","message":{"content":[{"type":"text","text":"should not appear"}],"model":"m"}}
             """;
 
-        var transport = new Transport.MockTransport(input);
+        var transport = CreateStreamingMock(contentMessages);
         var messages = new List<Message>();
-        await foreach (var msg in Claude.QueryCoreAsync("test", transport))
+        await foreach (var msg in Claude.QueryCoreAsync(transport, "test"))
         {
             messages.Add(msg);
         }
@@ -55,49 +70,11 @@ public class QueryTests
     }
 
     [Test]
-    public async Task QueryCoreAsync_WritesToolResultForToolUse()
-    {
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        // Phase 1: CLI emits assistant with tool_use, then waits for tool_result
-        const string phase1 = """{"type":"assistant","message":{"content":[{"type":"tool_use","id":"tu_1","name":"StructuredOutput","input":{"content":{"name":"Alice","age":30}}}],"model":"m"}}""";
-
-        // Phase 2: after SDK writes tool_result, CLI continues with remaining messages
-        const string phase2Assistant = """{"type":"assistant","message":{"content":[{"type":"text","text":"Done."}],"model":"m"}}""";
-        const string phase2Result = """{"type":"result","subtype":"success","duration_ms":100,"duration_api_ms":90,"is_error":false,"num_turns":2,"session_id":"s1","structured_output":{"name":"Alice","age":30}}""";
-
-        var transport = new Transport.MockTransport(phase1);
-        transport.OnWrite = json =>
-        {
-            if (json.Contains("tool_result"))
-            {
-                transport.EnqueueOutput(phase2Assistant);
-                transport.EnqueueOutput(phase2Result);
-            }
-        };
-
-        var messages = new List<Message>();
-        await foreach (var msg in Claude.QueryCoreAsync("Extract person info", transport, cts.Token))
-        {
-            messages.Add(msg);
-        }
-
-        // Verify tool_result was written (write #1 = user prompt, write #2 = tool_result)
-        await Assert.That(transport.WriteCount).IsEqualTo(2);
-        await Assert.That(transport.WrittenMessages[1]).Contains("tool_result");
-        await Assert.That(transport.WrittenMessages[1]).Contains("tu_1");
-
-        // Verify full flow completed
-        await Assert.That(messages).Count().IsEqualTo(3);
-        var result = messages.OfType<ResultMessage>().First();
-        await Assert.That(result.StructuredOutput).IsNotNull();
-    }
-
-    [Test]
     public async Task QueryCoreAsync_StructuredOutput_FullFlow()
     {
-        var transport = new Transport.MockTransport(StructuredOutputFlow);
+        var transport = CreateStreamingMock(StructuredOutputMessages);
         var messages = new List<Message>();
-        await foreach (var msg in Claude.QueryCoreAsync("Extract person info", transport))
+        await foreach (var msg in Claude.QueryCoreAsync(transport, "extract person"))
         {
             messages.Add(msg);
         }
@@ -120,31 +97,46 @@ public class QueryTests
     [Test]
     public async Task QueryCoreAsync_RegularQuery_StillWorks()
     {
-        var input = """
+        var contentMessages = """
             {"type":"assistant","message":{"content":[{"type":"text","text":"Hello world"}],"model":"m"}}
             {"type":"result","subtype":"success","duration_ms":50,"duration_api_ms":40,"is_error":false,"num_turns":1,"session_id":"s1","result":"Hello world"}
             """;
 
-        var transport = new Transport.MockTransport(input);
+        var transport = CreateStreamingMock(contentMessages);
         var messages = new List<Message>();
-        await foreach (var msg in Claude.QueryCoreAsync("say hello", transport))
+        await foreach (var msg in Claude.QueryCoreAsync(transport, "hello"))
         {
             messages.Add(msg);
         }
 
         await Assert.That(messages).Count().IsEqualTo(2);
-        await Assert.That(transport.EndInputCalled).IsFalse();
+    }
+
+    [Test]
+    public async Task QueryCoreAsync_SendsInitializeThenUserMessage()
+    {
+        var contentMessages = """
+            {"type":"result","subtype":"success","duration_ms":50,"duration_api_ms":40,"is_error":false,"num_turns":1,"session_id":"s1","result":"ok"}
+            """;
+
+        var transport = CreateStreamingMock(contentMessages);
+        await foreach (var _ in Claude.QueryCoreAsync(transport, "test prompt")) { }
+
+        // Should have written: 1) initialize request, 2) user message
+        await Assert.That(transport.WriteCount).IsEqualTo(2);
+        await Assert.That(transport.WrittenMessages[0]).Contains("initialize");
+        await Assert.That(transport.WrittenMessages[1]).Contains("test prompt");
     }
 
     [Test]
     public async Task QueryFlow_AssistantThenResult_CollectsTextFromAssistant()
     {
-        var input = """
+        var contentMessages = """
             {"type":"assistant","message":{"content":[{"type":"text","text":"The answer is 42."}],"model":"claude-sonnet-4-5-20250929"}}
             {"type":"result","subtype":"success","duration_ms":1000,"duration_api_ms":900,"is_error":false,"num_turns":1,"session_id":"s1","result":"The answer is 42."}
             """;
 
-        string result = await SimulateQueryText(input);
+        string result = await SimulateQueryText(contentMessages);
 
         await Assert.That(result).IsEqualTo("The answer is 42.");
     }
@@ -152,14 +144,14 @@ public class QueryTests
     [Test]
     public async Task QueryFlow_MultipleAssistantMessages_UsesLastText()
     {
-        var input = """
+        var contentMessages = """
             {"type":"assistant","message":{"content":[{"type":"thinking","thinking":"Let me think...","signature":"sig1"}],"model":"m"}}
             {"type":"assistant","message":{"content":[{"type":"text","text":"First response"}],"model":"m"}}
             {"type":"assistant","message":{"content":[{"type":"text","text":"Final response"}],"model":"m"}}
             {"type":"result","subtype":"success","duration_ms":1000,"duration_api_ms":900,"is_error":false,"num_turns":1,"session_id":"s1"}
             """;
 
-        string result = await SimulateQueryText(input);
+        string result = await SimulateQueryText(contentMessages);
 
         await Assert.That(result).IsEqualTo("Final response");
     }
@@ -167,12 +159,12 @@ public class QueryTests
     [Test]
     public async Task QueryFlow_ResultWithResultField_PrefersResultField()
     {
-        var input = """
+        var contentMessages = """
             {"type":"assistant","message":{"content":[{"type":"text","text":"streaming text"}],"model":"m"}}
             {"type":"result","subtype":"success","duration_ms":1000,"duration_api_ms":900,"is_error":false,"num_turns":1,"session_id":"s1","result":"final result text"}
             """;
 
-        string result = await SimulateQueryText(input);
+        string result = await SimulateQueryText(contentMessages);
 
         await Assert.That(result).IsEqualTo("final result text");
     }
@@ -180,11 +172,11 @@ public class QueryTests
     [Test]
     public async Task QueryFlow_NoText_ReturnsEmpty()
     {
-        var input = """
+        var contentMessages = """
             {"type":"result","subtype":"success","duration_ms":0,"duration_api_ms":0,"is_error":true,"num_turns":0,"session_id":"s1"}
             """;
 
-        string result = await SimulateQueryText(input);
+        string result = await SimulateQueryText(contentMessages);
 
         await Assert.That(result).IsEqualTo("");
     }
@@ -263,14 +255,14 @@ public class QueryTests
     }
 
     /// <summary>
-    /// Simulates QueryTextAsync logic: reads all messages, returns final text.
+    /// Simulates QueryTextAsync logic using the streaming mock transport.
     /// </summary>
-    private static async Task<string> SimulateQueryText(string cliOutput)
+    private static async Task<string> SimulateQueryText(string contentMessages)
     {
         string? resultText = null;
-        using var reader = new StringReader(cliOutput);
+        var transport = CreateStreamingMock(contentMessages);
 
-        await foreach (var message in JsonStreamReader.ReadAllAsync(reader))
+        await foreach (var message in Claude.QueryCoreAsync(transport, "test"))
         {
             switch (message)
             {

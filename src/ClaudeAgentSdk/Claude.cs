@@ -14,6 +14,7 @@ public static class Claude
 {
     /// <summary>
     /// Send a one-shot query and stream back messages as they arrive.
+    /// Uses streaming mode with initialize handshake internally (matching Python SDK).
     /// </summary>
     public static async IAsyncEnumerable<Message> QueryAsync(
         string prompt,
@@ -21,82 +22,54 @@ public static class Claude
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         options ??= new ClaudeClientOptions();
-        string cliPath = CliFinder.Find(options.CliPath);
-        var args = CliArgsBuilder.Build(options);
-        var envVars = CliArgsBuilder.BuildEnvironmentVariables(options);
 
-        var transport = new CliTransport(
-            cliPath,
-            args,
-            options.WorkingDirectory,
-            envVars,
-            options.StderrCallback);
-
-        await using (transport)
+        await using var client = new ClaudeClient(options);
+        await foreach (var message in client.SendAsync(prompt, cancellationToken))
         {
-            await transport.ConnectAsync(cancellationToken);
-
-            await foreach (var message in QueryCoreAsync(prompt, transport, cancellationToken))
-            {
-                yield return message;
-            }
+            yield return message;
         }
     }
 
     /// <summary>
-    /// Core query logic extracted for testability. Sends prompt and streams messages.
+    /// Core query logic extracted for testability. Sends initialize, writes user message,
+    /// then yields content messages until ResultMessage.
     /// </summary>
     internal static async IAsyncEnumerable<Message> QueryCoreAsync(
-        string prompt,
         ITransport transport,
+        string prompt,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        string json = BuildUserMessageJson(prompt);
-        await transport.WriteAsync(json, cancellationToken);
+        const string initializeRequestJson =
+            """{"type":"control_request","request_id":"init_1","request":{"subtype":"initialize","hooks":null}}""";
+
+        // Send initialize control request
+        await transport.WriteAsync(initializeRequestJson, cancellationToken);
+
+        bool userMessageSent = false;
 
         await foreach (var message in transport.ReadMessagesAsync(cancellationToken))
         {
-            yield return message;
-
-            if (message is ResultMessage)
-                yield break;
-
-            // In stream-json mode, the CLI waits for tool_result on stdin after emitting tool_use
-            if (message is AssistantMessage assistant)
+            switch (message)
             {
-                foreach (var block in assistant.Content)
-                {
-                    if (block is ToolUseBlock toolUse)
-                    {
-                        await transport.WriteAsync(
-                            BuildToolResultJson(toolUse.Id), cancellationToken);
-                    }
-                }
+                case ControlResponseMessage when !userMessageSent:
+                    userMessageSent = true;
+                    string userJson = ClaudeClient.BuildUserMessageJson(prompt, "");
+                    await transport.WriteAsync(userJson, cancellationToken);
+                    continue;
+
+                case ControlResponseMessage:
+                case ControlRequestMessage:
+                    continue; // skip control messages
+
+                case ResultMessage:
+                    yield return message;
+                    yield break;
+
+                default:
+                    yield return message;
+                    break;
             }
         }
-    }
-
-    internal static string BuildToolResultJson(string toolUseId)
-    {
-        using var stream = new MemoryStream();
-        using (var writer = new Utf8JsonWriter(stream))
-        {
-            writer.WriteStartObject();
-            writer.WriteString("type", "user");
-            writer.WriteStartObject("message");
-            writer.WriteStartArray("content");
-            writer.WriteStartObject();
-            writer.WriteString("type", "tool_result");
-            writer.WriteString("tool_use_id", toolUseId);
-            writer.WriteString("content", "Tool result provided");
-            writer.WriteEndObject();
-            writer.WriteEndArray();
-            writer.WriteEndObject();
-            writer.WriteString("parent_tool_use_id", toolUseId);
-            writer.WriteString("session_id", "default");
-            writer.WriteEndObject();
-        }
-        return System.Text.Encoding.UTF8.GetString(stream.ToArray());
     }
 
     /// <summary>
@@ -153,20 +126,25 @@ public static class Claude
         return default;
     }
 
-    internal static string BuildUserMessageJson(string prompt)
+    /// <summary>
+    /// Returns the full CLI command that would be executed, for debugging.
+    /// </summary>
+    public static string GetCliCommand(string prompt, ClaudeClientOptions? options = null)
     {
-        using var stream = new MemoryStream();
-        using (var writer = new Utf8JsonWriter(stream))
+        options ??= new ClaudeClientOptions();
+        string cliPath = CliFinder.Find(options.CliPath);
+        var args = CliArgsBuilder.Build(options);
+
+        static string ShellEscape(string a)
         {
-            writer.WriteStartObject();
-            writer.WriteString("type", "user");
-            writer.WriteStartObject("message");
-            writer.WriteString("role", "user");
-            writer.WriteString("content", prompt);
-            writer.WriteEndObject();
-            writer.WriteString("session_id", "default");
-            writer.WriteEndObject();
+            if (a.Length == 0) return "\"\"";
+            if (a.Contains('\'') || a.Contains('"') || a.Contains(' ') || a.Contains('{'))
+                return "'" + a.Replace("'", "'\\''") + "'";
+            return a;
         }
-        return System.Text.Encoding.UTF8.GetString(stream.ToArray());
+
+        string escapedArgs = string.Join(" ", args.Select(ShellEscape));
+
+        return $"{cliPath} {escapedArgs}";
     }
 }

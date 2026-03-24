@@ -8,7 +8,7 @@ public class ClaudeClientTests
     [Test]
     public async Task BuildUserMessageJson_ProducesValidJson()
     {
-        string json = Claude.BuildUserMessageJson("Hello Claude");
+        string json = ClaudeClient.BuildUserMessageJson("Hello Claude", "default");
 
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
@@ -22,7 +22,7 @@ public class ClaudeClientTests
     [Test]
     public async Task BuildUserMessageJson_EscapesSpecialCharacters()
     {
-        string json = Claude.BuildUserMessageJson("Hello \"world\" \n\ttab");
+        string json = ClaudeClient.BuildUserMessageJson("Hello \"world\" \n\ttab", "default");
 
         using var doc = JsonDocument.Parse(json);
         string? content = doc.RootElement.GetProperty("message").GetProperty("content").GetString();
