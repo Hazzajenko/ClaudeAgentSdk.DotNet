@@ -22,6 +22,8 @@ internal sealed class MockTransport : ITransport
     /// </summary>
     public Action<string>? OnWrite { get; set; }
 
+    public Task ConnectAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
     public MockTransport(string initialOutput)
     {
         foreach (var line in initialOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))

@@ -4,10 +4,15 @@ namespace ClaudeAgentSdk.Transport;
 
 /// <summary>
 /// Abstraction over the CLI subprocess communication.
-/// Testable via mock implementations that feed synthetic JSON.
+/// Implement to inject custom transports for testing or non-CLI backends.
 /// </summary>
-internal interface ITransport : IAsyncDisposable
+public interface ITransport : IAsyncDisposable
 {
+    /// <summary>
+    /// Establish the connection. Called once before read/write.
+    /// </summary>
+    Task ConnectAsync(CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Read messages from the CLI stdout stream.
     /// </summary>

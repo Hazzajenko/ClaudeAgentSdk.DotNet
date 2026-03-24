@@ -20,7 +20,8 @@ namespace ClaudeAgentSdk;
 public sealed class ClaudeClient : IAsyncDisposable
 {
     private readonly ClaudeClientOptions _options;
-    private CliTransport? _transport;
+    private readonly ITransport? _injectedTransport;
+    private ITransport? _transport;
     private ControlProtocolHandler? _controlHandler;
     private Channel<Message>? _messageChannel;
     private Task? _readerTask;
@@ -31,9 +32,10 @@ public sealed class ClaudeClient : IAsyncDisposable
     private int _nextCallbackId;
     private bool _disposed;
 
-    public ClaudeClient(ClaudeClientOptions? options = null)
+    public ClaudeClient(ClaudeClientOptions? options = null, ITransport? transport = null)
     {
         _options = options ?? new ClaudeClientOptions();
+        _injectedTransport = transport;
     }
 
     /// <summary>
@@ -204,18 +206,27 @@ public sealed class ClaudeClient : IAsyncDisposable
 
     private async Task ConnectAsync(CancellationToken cancellationToken)
     {
-        string cliPath = CliFinder.Find(_options.CliPath);
-        var args = CliArgsBuilder.Build(_options);
-        var envVars = CliArgsBuilder.BuildEnvironmentVariables(_options);
+        if (_injectedTransport is not null)
+        {
+            _transport = _injectedTransport;
+            await _transport.ConnectAsync(cancellationToken);
+        }
+        else
+        {
+            string cliPath = CliFinder.Find(_options.CliPath);
+            var args = CliArgsBuilder.Build(_options);
+            var envVars = CliArgsBuilder.BuildEnvironmentVariables(_options);
 
-        _transport = new CliTransport(
-            cliPath,
-            args,
-            _options.WorkingDirectory,
-            envVars,
-            _options.StderrCallback);
+            var cliTransport = new CliTransport(
+                cliPath,
+                args,
+                _options.WorkingDirectory,
+                envVars,
+                _options.StderrCallback);
 
-        await _transport.ConnectAsync(cancellationToken);
+            await cliTransport.ConnectAsync(cancellationToken);
+            _transport = cliTransport;
+        }
 
         _controlHandler = new ControlProtocolHandler(_transport);
         _messageChannel = Channel.CreateBounded<Message>(new BoundedChannelOptions(100)

@@ -19,11 +19,12 @@ public static class Claude
     public static async IAsyncEnumerable<Message> QueryAsync(
         string prompt,
         ClaudeClientOptions? options = null,
+        ITransport? transport = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         options ??= new ClaudeClientOptions();
 
-        await using var client = new ClaudeClient(options);
+        await using var client = new ClaudeClient(options, transport);
         await foreach (var message in client.SendAsync(prompt, cancellationToken))
         {
             yield return message;
@@ -78,11 +79,12 @@ public static class Claude
     public static async Task<string> QueryTextAsync(
         string prompt,
         ClaudeClientOptions? options = null,
+        ITransport? transport = null,
         CancellationToken cancellationToken = default)
     {
         string? resultText = null;
 
-        await foreach (var message in QueryAsync(prompt, options, cancellationToken))
+        await foreach (var message in QueryAsync(prompt, options, transport, cancellationToken))
         {
             switch (message)
             {
@@ -114,6 +116,7 @@ public static class Claude
         string prompt,
         JsonTypeInfo<T> jsonTypeInfo,
         ClaudeClientOptions? options = null,
+        ITransport? transport = null,
         CancellationToken cancellationToken = default)
     {
         options ??= new ClaudeClientOptions();
@@ -126,7 +129,7 @@ public static class Claude
             };
         }
 
-        await foreach (var message in QueryAsync(prompt, options, cancellationToken))
+        await foreach (var message in QueryAsync(prompt, options, transport, cancellationToken))
         {
             if (message is ResultMessage { StructuredOutput: { } output })
             {
