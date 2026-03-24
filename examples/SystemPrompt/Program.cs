@@ -10,14 +10,8 @@ async Task NoSystemPrompt()
 
     await foreach (var message in Claude.QueryAsync("What is 2 + 2?"))
     {
-        if (message is AssistantMessage { Content: var content })
-        {
-            foreach (var block in content)
-            {
-                if (block is TextBlock { Text: var text })
-                    Console.WriteLine($"Claude: {text}");
-            }
-        }
+        if (message is AssistantMessage { Text: var text })
+            Console.WriteLine($"Claude: {text}");
     }
 
     Console.WriteLine();
@@ -34,14 +28,8 @@ async Task StringSystemPrompt()
 
     await foreach (var message in Claude.QueryAsync("What is 2 + 2?", options))
     {
-        if (message is AssistantMessage { Content: var content })
-        {
-            foreach (var block in content)
-            {
-                if (block is TextBlock { Text: var text })
-                    Console.WriteLine($"Claude: {text}");
-            }
-        }
+        if (message is AssistantMessage { Text: var text })
+            Console.WriteLine($"Claude: {text}");
     }
 
     Console.WriteLine();

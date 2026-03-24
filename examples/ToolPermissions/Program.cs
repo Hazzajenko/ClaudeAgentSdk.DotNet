@@ -96,12 +96,8 @@ await foreach (var message in client.SendAsync(
 {
     switch (message)
     {
-        case AssistantMessage { Content: var content }:
-            foreach (var block in content)
-            {
-                if (block is TextBlock { Text: var text })
-                    Console.WriteLine($"\nClaude: {text}");
-            }
+        case AssistantMessage { Text: var text }:
+            Console.WriteLine($"\nClaude: {text}");
             break;
 
         case ResultMessage result:

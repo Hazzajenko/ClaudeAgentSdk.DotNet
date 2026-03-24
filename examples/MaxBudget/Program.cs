@@ -20,12 +20,8 @@ async Task WithoutBudget()
     {
         switch (message)
         {
-            case AssistantMessage { Content: var content }:
-                foreach (var block in content)
-                {
-                    if (block is TextBlock { Text: var text })
-                        Console.WriteLine($"Claude: {text}");
-                }
+            case AssistantMessage { Text: var text }:
+                Console.WriteLine($"Claude: {text}");
                 break;
 
             case ResultMessage result:
@@ -52,12 +48,8 @@ async Task WithReasonableBudget()
     {
         switch (message)
         {
-            case AssistantMessage { Content: var content }:
-                foreach (var block in content)
-                {
-                    if (block is TextBlock { Text: var text })
-                        Console.WriteLine($"Claude: {text}");
-                }
+            case AssistantMessage { Text: var text }:
+                Console.WriteLine($"Claude: {text}");
                 break;
 
             case ResultMessage result:
@@ -84,12 +76,8 @@ async Task WithTightBudget()
     {
         switch (message)
         {
-            case AssistantMessage { Content: var content }:
-                foreach (var block in content)
-                {
-                    if (block is TextBlock { Text: var text })
-                        Console.WriteLine($"Claude: {text}");
-                }
+            case AssistantMessage { Text: var text }:
+                Console.WriteLine($"Claude: {text}");
                 break;
 
             case ResultMessage { Subtype: "error_max_budget_usd" } result:

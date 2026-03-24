@@ -70,22 +70,25 @@ var tools = new SdkMcpTool[]
 // Create the calculator server
 var calculator = McpSdkServerConfig.Create("calculator", tools, "2.0.0");
 
-// Pre-approve all calculator MCP tools
+// Old: manually construct mcp__{serverKey}__{toolName} magic strings
+// AllowedTools =
+// [
+//     "mcp__calc__add",
+//     "mcp__calc__subtract",
+//     "mcp__calc__multiply",
+//     "mcp__calc__divide",
+//     "mcp__calc__sqrt",
+//     "mcp__calc__power",
+// ],
+
+// New: derive from the server config — no magic strings
 var options = new ClaudeClientOptions
 {
     McpServers = new Dictionary<string, McpServerConfig>
     {
         ["calc"] = calculator,
     },
-    AllowedTools =
-    [
-        "mcp__calc__add",
-        "mcp__calc__subtract",
-        "mcp__calc__multiply",
-        "mcp__calc__divide",
-        "mcp__calc__sqrt",
-        "mcp__calc__power",
-    ],
+    AllowedTools = calculator.GetQualifiedToolNames("calc"),
 };
 
 void DisplayMessage(Message msg)
@@ -108,7 +111,12 @@ void DisplayMessage(Message msg)
             }
             break;
 
-        case UserMessage { Content: var content } when content is IReadOnlyList<ContentBlock> blocks:
+        // Old: ugly runtime downcast on object Content
+        // case UserMessage { Content: var content } when content is IReadOnlyList<ContentBlock> blocks:
+        //     foreach (var block in blocks) { ... }
+
+        // New: typed accessor
+        case UserMessage { ContentBlocks: { } blocks }:
             foreach (var block in blocks)
             {
                 if (block is ToolResultBlock { Content: { } resultContent })

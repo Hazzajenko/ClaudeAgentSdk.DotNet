@@ -8,18 +8,30 @@ await ManualMessageHandlingExample();
 await WithOptionsExample();
 await ErrorHandlingExample();
 
+// Old: 8-line helper to extract text from AssistantMessage
+// void DisplayMessage(Message msg)
+// {
+//     switch (msg)
+//     {
+//         case AssistantMessage { Content: var content }:
+//             foreach (var block in content)
+//                 if (block is TextBlock { Text: var text })
+//                     Console.WriteLine($"Claude: {text}");
+//             break;
+//         case ResultMessage:
+//             Console.WriteLine("Result ended");
+//             break;
+//     }
+// }
+
+// New: 1-line text access
 void DisplayMessage(Message msg)
 {
     switch (msg)
     {
-        case AssistantMessage { Content: var content }:
-            foreach (var block in content)
-            {
-                if (block is TextBlock { Text: var text })
-                    Console.WriteLine($"Claude: {text}");
-            }
+        case AssistantMessage { Text: var text }:
+            Console.WriteLine($"Claude: {text}");
             break;
-
         case ResultMessage:
             Console.WriteLine("Result ended");
             break;
@@ -114,21 +126,16 @@ async Task ManualMessageHandlingExample()
     {
         switch (message)
         {
-            case AssistantMessage { Content: var content }:
-                foreach (var block in content)
+            case AssistantMessage { Text: var text } when text is not null:
+                Console.WriteLine($"Claude: {text}");
+
+                // Custom logic: extract language names
+                foreach (var lang in (string[])["Python", "JavaScript", "Java", "C++", "Go", "Rust", "Ruby", "C#"])
                 {
-                    if (block is not TextBlock { Text: var text }) continue;
-
-                    Console.WriteLine($"Claude: {text}");
-
-                    // Custom logic: extract language names
-                    foreach (var lang in (string[])["Python", "JavaScript", "Java", "C++", "Go", "Rust", "Ruby", "C#"])
+                    if (text.Contains(lang, StringComparison.OrdinalIgnoreCase) && !languagesFound.Contains(lang))
                     {
-                        if (text.Contains(lang, StringComparison.OrdinalIgnoreCase) && !languagesFound.Contains(lang))
-                        {
-                            languagesFound.Add(lang);
-                            Console.WriteLine($"  Found language: {lang}");
-                        }
+                        languagesFound.Add(lang);
+                        Console.WriteLine($"  Found language: {lang}");
                     }
                 }
                 break;

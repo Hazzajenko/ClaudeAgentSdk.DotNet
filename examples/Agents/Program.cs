@@ -37,12 +37,8 @@ async Task CodeReviewerExample()
         {
             switch (message)
             {
-                case AssistantMessage { Content: var content }:
-                    foreach (var block in content)
-                    {
-                        if (block is TextBlock { Text: var text })
-                            Console.WriteLine($"Claude: {text}");
-                    }
+                case AssistantMessage { Text: var text }:
+                    Console.WriteLine($"Claude: {text}");
                     break;
 
                 case ResultMessage { TotalCostUsd: > 0 and var cost }:
@@ -89,12 +85,8 @@ async Task DocumentationWriterExample()
         {
             switch (message)
             {
-                case AssistantMessage { Content: var content }:
-                    foreach (var block in content)
-                    {
-                        if (block is TextBlock { Text: var text })
-                            Console.WriteLine($"Claude: {text}");
-                    }
+                case AssistantMessage { Text: var text }:
+                    Console.WriteLine($"Claude: {text}");
                     break;
 
                 case ResultMessage { TotalCostUsd: > 0 and var cost }:
@@ -147,12 +139,8 @@ async Task MultipleAgentsExample()
         {
             switch (message)
             {
-                case AssistantMessage { Content: var content }:
-                    foreach (var block in content)
-                    {
-                        if (block is TextBlock { Text: var text })
-                            Console.WriteLine($"Claude: {text}");
-                    }
+                case AssistantMessage { Text: var text }:
+                    Console.WriteLine($"Claude: {text}");
                     break;
 
                 case ResultMessage { TotalCostUsd: > 0 and var cost }:

@@ -29,12 +29,8 @@ await foreach (var message in client.SendAsync(prompt))
             Console.WriteLine($"[StreamEvent] {evt}");
             break;
 
-        case AssistantMessage { Content: var content }:
-            foreach (var block in content)
-            {
-                if (block is TextBlock { Text: var text })
-                    Console.WriteLine($"Claude: {text}");
-            }
+        case AssistantMessage { Text: var text }:
+            Console.WriteLine($"Claude: {text}");
             break;
 
         case ResultMessage result:

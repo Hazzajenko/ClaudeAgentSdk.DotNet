@@ -11,14 +11,15 @@ async Task BasicExample()
 
     await foreach (var message in Claude.QueryAsync("What is 2 + 2?"))
     {
-        if (message is AssistantMessage { Content: var content })
-        {
-            foreach (var block in content)
-            {
-                if (block is TextBlock { Text: var text })
-                    Console.WriteLine($"Claude: {text}");
-            }
-        }
+        // Old: nested pattern match + loop to extract text
+        // if (message is AssistantMessage { Content: var content })
+        //     foreach (var block in content)
+        //         if (block is TextBlock { Text: var text })
+        //             Console.WriteLine($"Claude: {text}");
+
+        // New: single property access
+        if (message is AssistantMessage { Text: var text })
+            Console.WriteLine($"Claude: {text}");
     }
 
     Console.WriteLine();
@@ -36,14 +37,8 @@ async Task WithOptionsExample()
 
     await foreach (var message in Claude.QueryAsync("Explain what C# is in one sentence.", options))
     {
-        if (message is AssistantMessage { Content: var content })
-        {
-            foreach (var block in content)
-            {
-                if (block is TextBlock { Text: var text })
-                    Console.WriteLine($"Claude: {text}");
-            }
-        }
+        if (message is AssistantMessage { Text: var text })
+            Console.WriteLine($"Claude: {text}");
     }
 
     Console.WriteLine();
@@ -64,12 +59,8 @@ async Task WithToolsExample()
     {
         switch (message)
         {
-            case AssistantMessage { Content: var content }:
-                foreach (var block in content)
-                {
-                    if (block is TextBlock { Text: var text })
-                        Console.WriteLine($"Claude: {text}");
-                }
+            case AssistantMessage { Text: var text }:
+                Console.WriteLine($"Claude: {text}");
                 break;
 
             case ResultMessage { TotalCostUsd: > 0 and var cost }:

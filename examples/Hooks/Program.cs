@@ -13,12 +13,8 @@ void DisplayMessage(Message msg)
 {
     switch (msg)
     {
-        case AssistantMessage { Content: var content }:
-            foreach (var block in content)
-            {
-                if (block is TextBlock { Text: var text })
-                    Console.WriteLine($"Claude: {text}");
-            }
+        case AssistantMessage { Text: var text }:
+            Console.WriteLine($"Claude: {text}");
             break;
         case ResultMessage:
             Console.WriteLine("Result ended");
@@ -31,42 +27,59 @@ async Task PreToolUseExample()
     Console.WriteLine("=== PreToolUse Example ===");
     Console.WriteLine("Demonstrates how PreToolUse can block dangerous bash commands.\n");
 
-    Task<HookOutput> CheckBashCommand(HookInput input, CancellationToken ct)
+    // Old: async delegate returning Task.FromResult everywhere
+    // Task<HookOutput> CheckBashCommand(HookInput input, CancellationToken ct)
+    // {
+    //     if (input is not PreToolUseInput { ToolName: "Bash" } pre)
+    //         return Task.FromResult(HookOutput.Empty);
+    //     ...
+    //     return Task.FromResult(new HookOutput { ... });
+    // }
+
+    // New: sync callback — no Task.FromResult noise
+    HookOutput CheckBashCommand(HookInput input)
     {
         if (input is not PreToolUseInput { ToolName: "Bash" } pre)
-            return Task.FromResult(HookOutput.Empty);
+            return HookOutput.Empty;
 
         string command = pre.ToolInput.TryGetProperty("command", out var cmd) ? cmd.GetString() ?? "" : "";
 
         if (command.Contains("foo.sh"))
         {
             Console.WriteLine($"  [Hook] Blocked command: {command}");
-            return Task.FromResult(new HookOutput
+            return new HookOutput
             {
                 HookSpecificOutput = new PreToolUseOutput
                 {
                     PermissionDecision = "deny",
                     PermissionDecisionReason = "Command contains blocked pattern: foo.sh",
                 },
-            });
+            };
         }
 
-        return Task.FromResult(HookOutput.Empty);
+        return HookOutput.Empty;
     }
 
     var options = new ClaudeClientOptions
     {
         AllowedTools = ["Bash"],
+        // Old: deeply nested dictionary + list + object initializer
+        // Hooks = new Dictionary<HookEvent, IReadOnlyList<HookMatcher>>
+        // {
+        //     [HookEvent.PreToolUse] =
+        //     [
+        //         new HookMatcher
+        //         {
+        //             Matcher = "Bash",
+        //             Hooks = [CheckBashCommand],
+        //         },
+        //     ],
+        // },
+
+        // New: factory method, 1 line per hook
         Hooks = new Dictionary<HookEvent, IReadOnlyList<HookMatcher>>
         {
-            [HookEvent.PreToolUse] =
-            [
-                new HookMatcher
-                {
-                    Matcher = "Bash",
-                    Hooks = [CheckBashCommand],
-                },
-            ],
+            [HookEvent.PreToolUse] = [HookMatcher.Create("Bash", CheckBashCommand)],
         },
     };
 
@@ -94,28 +107,20 @@ async Task UserPromptSubmitExample()
     Console.WriteLine("=== UserPromptSubmit Example ===");
     Console.WriteLine("Adds custom context when a session starts.\n");
 
-    Task<HookOutput> AddCustomInstructions(HookInput input, CancellationToken ct)
-    {
-        return Task.FromResult(new HookOutput
-        {
-            HookSpecificOutput = new UserPromptSubmitOutput
-            {
-                AdditionalContext = "My favorite color is hot pink",
-            },
-        });
-    }
-
     var options = new ClaudeClientOptions
     {
         Hooks = new Dictionary<HookEvent, IReadOnlyList<HookMatcher>>
         {
+            // New: sync lambda, no Task.FromResult wrapper needed
             [HookEvent.UserPromptSubmit] =
             [
-                new HookMatcher
+                HookMatcher.Create(null, _ => new HookOutput
                 {
-                    Matcher = null,
-                    Hooks = [AddCustomInstructions],
-                },
+                    HookSpecificOutput = new UserPromptSubmitOutput
+                    {
+                        AdditionalContext = "My favorite color is hot pink",
+                    },
+                }),
             ],
         },
     };
@@ -134,10 +139,10 @@ async Task PostToolUseExample()
     Console.WriteLine("=== PostToolUse Example ===");
     Console.WriteLine("Reviews tool output and adds context on errors.\n");
 
-    Task<HookOutput> ReviewToolOutput(HookInput input, CancellationToken ct)
+    HookOutput ReviewToolOutput(HookInput input)
     {
         if (input is not PostToolUseInput post)
-            return Task.FromResult(HookOutput.Empty);
+            return HookOutput.Empty;
 
         string toolResponse = post.ToolResponse.ValueKind == System.Text.Json.JsonValueKind.String
             ? post.ToolResponse.GetString() ?? ""
@@ -146,7 +151,7 @@ async Task PostToolUseExample()
         if (toolResponse.Contains("No such file or directory", StringComparison.OrdinalIgnoreCase)
             || toolResponse.Contains("error", StringComparison.OrdinalIgnoreCase))
         {
-            return Task.FromResult(new HookOutput
+            return new HookOutput
             {
                 SystemMessage = "The command produced an error",
                 Reason = "Tool execution failed - consider checking the command syntax",
@@ -154,10 +159,10 @@ async Task PostToolUseExample()
                 {
                     AdditionalContext = "The command encountered an error. Try a different approach.",
                 },
-            });
+            };
         }
 
-        return Task.FromResult(HookOutput.Empty);
+        return HookOutput.Empty;
     }
 
     var options = new ClaudeClientOptions
@@ -165,14 +170,7 @@ async Task PostToolUseExample()
         AllowedTools = ["Bash"],
         Hooks = new Dictionary<HookEvent, IReadOnlyList<HookMatcher>>
         {
-            [HookEvent.PostToolUse] =
-            [
-                new HookMatcher
-                {
-                    Matcher = "Bash",
-                    Hooks = [ReviewToolOutput],
-                },
-            ],
+            [HookEvent.PostToolUse] = [HookMatcher.Create("Bash", ReviewToolOutput)],
         },
     };
 
