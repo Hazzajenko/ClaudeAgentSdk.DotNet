@@ -1,87 +1,58 @@
-using System.Text.Json;
+using System.Text.Json.Serialization;
 using ClaudeAgentSdk;
 using ClaudeAgentSdk.Mcp;
 using ClaudeAgentSdk.Mcp.Sdk;
 using ClaudeAgentSdk.Messages;
 
-// Define calculator tools using SdkMcpTool
-var twoNumberSchema = McpJsonSchema.Object(
-    McpJsonSchema.Property("a", McpJsonSchema.Number("First number")),
-    McpJsonSchema.Property("b", McpJsonSchema.Number("Second number")));
+// Old: manual schema + raw JsonElement input + Task.FromResult everywhere
+//
+// var twoNumberSchema = McpJsonSchema.Object(
+//     McpJsonSchema.Property("a", McpJsonSchema.Number("First number")),
+//     McpJsonSchema.Property("b", McpJsonSchema.Number("Second number")));
+//
+// SdkMcpTool.Create("add", "Add two numbers", twoNumberSchema,
+//     (input, _) =>
+//     {
+//         var a = input.GetProperty("a").GetDouble();
+//         var b = input.GetProperty("b").GetDouble();
+//         return Task.FromResult(McpToolResult.Text($"{a + b}"));
+//     })
 
+// New: typed input records — schema auto-derived, no JsonElement, no Task.FromResult
 var tools = new SdkMcpTool[]
 {
-    SdkMcpTool.Create("add", "Add two numbers", twoNumberSchema,
-        (input, _) =>
-        {
-            var a = input.GetProperty("a").GetDouble();
-            var b = input.GetProperty("b").GetDouble();
-            return Task.FromResult(McpToolResult.Text($"{a} + {b} = {a + b}"));
-        }),
+    SdkMcpTool.Create<TwoNumbers>("add", "Add two numbers",
+        CalcContext.Default.TwoNumbers,
+        (input, _) => McpToolResult.Text($"{input.A} + {input.B} = {input.A + input.B}")),
 
-    SdkMcpTool.Create("subtract", "Subtract one number from another", twoNumberSchema,
-        (input, _) =>
-        {
-            var a = input.GetProperty("a").GetDouble();
-            var b = input.GetProperty("b").GetDouble();
-            return Task.FromResult(McpToolResult.Text($"{a} - {b} = {a - b}"));
-        }),
+    SdkMcpTool.Create<TwoNumbers>("subtract", "Subtract one number from another",
+        CalcContext.Default.TwoNumbers,
+        (input, _) => McpToolResult.Text($"{input.A} - {input.B} = {input.A - input.B}")),
 
-    SdkMcpTool.Create("multiply", "Multiply two numbers", twoNumberSchema,
-        (input, _) =>
-        {
-            var a = input.GetProperty("a").GetDouble();
-            var b = input.GetProperty("b").GetDouble();
-            return Task.FromResult(McpToolResult.Text($"{a} * {b} = {a * b}"));
-        }),
+    SdkMcpTool.Create<TwoNumbers>("multiply", "Multiply two numbers",
+        CalcContext.Default.TwoNumbers,
+        (input, _) => McpToolResult.Text($"{input.A} * {input.B} = {input.A * input.B}")),
 
-    SdkMcpTool.Create("divide", "Divide one number by another", twoNumberSchema,
-        (input, _) =>
-        {
-            var a = input.GetProperty("a").GetDouble();
-            var b = input.GetProperty("b").GetDouble();
-            return b == 0
-                ? Task.FromResult(McpToolResult.Error("Division by zero is not allowed"))
-                : Task.FromResult(McpToolResult.Text($"{a} / {b} = {a / b}"));
-        }),
+    SdkMcpTool.Create<TwoNumbers>("divide", "Divide one number by another",
+        CalcContext.Default.TwoNumbers,
+        (input, _) => input.B == 0
+            ? McpToolResult.Error("Division by zero is not allowed")
+            : McpToolResult.Text($"{input.A} / {input.B} = {input.A / input.B}")),
 
-    SdkMcpTool.Create("sqrt", "Calculate square root",
-        McpJsonSchema.Object(McpJsonSchema.Property("n", McpJsonSchema.Number("Number to take square root of"))),
-        (input, _) =>
-        {
-            var n = input.GetProperty("n").GetDouble();
-            return n < 0
-                ? Task.FromResult(McpToolResult.Error($"Cannot calculate square root of negative number {n}"))
-                : Task.FromResult(McpToolResult.Text($"sqrt({n}) = {Math.Sqrt(n)}"));
-        }),
+    SdkMcpTool.Create<SingleNumber>("sqrt", "Calculate square root",
+        CalcContext.Default.SingleNumber,
+        (input, _) => input.N < 0
+            ? McpToolResult.Error($"Cannot calculate square root of negative number {input.N}")
+            : McpToolResult.Text($"sqrt({input.N}) = {Math.Sqrt(input.N)}")),
 
-    SdkMcpTool.Create("power", "Raise a number to a power",
-        McpJsonSchema.Object(
-            McpJsonSchema.Property("base", McpJsonSchema.Number("Base number")),
-            McpJsonSchema.Property("exponent", McpJsonSchema.Number("Exponent"))),
-        (input, _) =>
-        {
-            var b = input.GetProperty("base").GetDouble();
-            var e = input.GetProperty("exponent").GetDouble();
-            return Task.FromResult(McpToolResult.Text($"{b}^{e} = {Math.Pow(b, e)}"));
-        }),
+    SdkMcpTool.Create<PowerInput>("power", "Raise a number to a power",
+        CalcContext.Default.PowerInput,
+        (input, _) => McpToolResult.Text($"{input.Base}^{input.Exponent} = {Math.Pow(input.Base, input.Exponent)}")),
 };
 
 // Create the calculator server
 var calculator = McpSdkServerConfig.Create("calculator", tools, "2.0.0");
 
-// Old: manually construct mcp__{serverKey}__{toolName} magic strings
-// AllowedTools =
-// [
-//     "mcp__calc__add",
-//     "mcp__calc__subtract",
-//     "mcp__calc__multiply",
-//     "mcp__calc__divide",
-//     "mcp__calc__sqrt",
-//     "mcp__calc__power",
-// ],
-
-// New: derive from the server config — no magic strings
 var options = new ClaudeClientOptions
 {
     McpServers = new Dictionary<string, McpServerConfig>
@@ -111,11 +82,6 @@ void DisplayMessage(Message msg)
             }
             break;
 
-        // Old: ugly runtime downcast on object Content
-        // case UserMessage { Content: var content } when content is IReadOnlyList<ContentBlock> blocks:
-        //     foreach (var block in blocks) { ... }
-
-        // New: typed accessor
         case UserMessage { ContentBlocks: { } blocks }:
             foreach (var block in blocks)
             {
@@ -153,3 +119,33 @@ foreach (var prompt in prompts)
     await foreach (var message in client.SendAsync(prompt))
         DisplayMessage(message);
 }
+
+// Input records — schema auto-derived from these types
+public sealed record TwoNumbers
+{
+    [JsonPropertyName("a")]
+    public double A { get; init; }
+
+    [JsonPropertyName("b")]
+    public double B { get; init; }
+}
+
+public sealed record SingleNumber
+{
+    [JsonPropertyName("n")]
+    public double N { get; init; }
+}
+
+public sealed record PowerInput
+{
+    [JsonPropertyName("base")]
+    public double Base { get; init; }
+
+    [JsonPropertyName("exponent")]
+    public double Exponent { get; init; }
+}
+
+[JsonSerializable(typeof(TwoNumbers))]
+[JsonSerializable(typeof(SingleNumber))]
+[JsonSerializable(typeof(PowerInput))]
+internal sealed partial class CalcContext : JsonSerializerContext;
