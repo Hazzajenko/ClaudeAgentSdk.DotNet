@@ -7,6 +7,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- `MessageCallback` option on `ClaudeClientOptions` — fires for every message before it's yielded, for real-time debug visibility into the message stream (e.g. `msg => Console.Error.WriteLine($"[debug] {msg.GetType().Name}")`)
+
 ### Fixed
 
 - Fix agent queries hanging — task system messages (`task_started`, `task_progress`, `task_notification`) failed to deserialize because the CLI puts fields at the top level, not nested in a `data` property
