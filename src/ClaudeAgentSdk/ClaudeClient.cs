@@ -58,6 +58,7 @@ public sealed class ClaudeClient : IAsyncDisposable
         // Read from the channel until ResultMessage
         await foreach (var message in _messageChannel!.Reader.ReadAllAsync(cancellationToken))
         {
+            _options.MessageCallback?.Invoke(message);
             yield return message;
 
             if (message is ResultMessage)

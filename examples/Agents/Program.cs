@@ -16,6 +16,7 @@ async Task CodeReviewerExample()
     {
         PermissionMode = PermissionMode.AcceptEdits,
         MaxTurns = 5,
+        // MessageCallback = msg => Console.Error.WriteLine($"[debug] {msg.GetType().Name}"),
         Agents = new Dictionary<string, AgentDefinition>
         {
             ["code-reviewer"] = new()

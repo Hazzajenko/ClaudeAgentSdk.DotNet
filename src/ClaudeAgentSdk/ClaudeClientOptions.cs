@@ -43,6 +43,12 @@ public sealed record ClaudeClientOptions
     public CanUseToolCallback? CanUseTool { get; init; }
     public IReadOnlyDictionary<string, string>? EnvironmentVariables { get; init; }
     public Action<string>? StderrCallback { get; init; }
+
+    /// <summary>
+    /// Called for every message received from the CLI, before it's yielded to the caller.
+    /// Useful for debugging — e.g. <c>msg => Console.Error.WriteLine($"[debug] {msg.GetType().Name}")</c>
+    /// </summary>
+    public Action<Messages.Message>? MessageCallback { get; init; }
 }
 
 public enum PermissionMode
