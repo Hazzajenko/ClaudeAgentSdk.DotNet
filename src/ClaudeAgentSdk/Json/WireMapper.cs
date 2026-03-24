@@ -84,7 +84,7 @@ internal static class WireMapper
 
     private static TaskStartedMessage MapTaskStarted(SystemMessageWire wire, JsonElement rootClone)
     {
-        var data = wire.Data!.Value.Deserialize(ClaudeJsonContext.Default.TaskStartedDataWire)!;
+        var data = rootClone.Deserialize(ClaudeJsonContext.Default.TaskStartedDataWire)!;
         return new TaskStartedMessage
         {
             Subtype = wire.Subtype,
@@ -100,7 +100,7 @@ internal static class WireMapper
 
     private static TaskProgressMessage MapTaskProgress(SystemMessageWire wire, JsonElement rootClone)
     {
-        var data = wire.Data!.Value.Deserialize(ClaudeJsonContext.Default.TaskProgressDataWire)!;
+        var data = rootClone.Deserialize(ClaudeJsonContext.Default.TaskProgressDataWire)!;
         return new TaskProgressMessage
         {
             Subtype = wire.Subtype,
@@ -117,7 +117,7 @@ internal static class WireMapper
 
     private static TaskNotificationMessage MapTaskNotification(SystemMessageWire wire, JsonElement rootClone)
     {
-        var data = wire.Data!.Value.Deserialize(ClaudeJsonContext.Default.TaskNotificationDataWire)!;
+        var data = rootClone.Deserialize(ClaudeJsonContext.Default.TaskNotificationDataWire)!;
         return new TaskNotificationMessage
         {
             Subtype = wire.Subtype,

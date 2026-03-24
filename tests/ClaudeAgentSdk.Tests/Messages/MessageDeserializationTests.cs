@@ -309,14 +309,12 @@ public class MessageDeserializationTests
             {
                 "type": "system",
                 "subtype": "task_started",
-                "data": {
-                    "task_id": "task-001",
-                    "description": "Running tests",
-                    "uuid": "msg-001",
-                    "session_id": "sess-001",
-                    "tool_use_id": "tool-001",
-                    "task_type": "agent"
-                }
+                "task_id": "task-001",
+                "description": "Running tests",
+                "uuid": "msg-001",
+                "session_id": "sess-001",
+                "tool_use_id": "tool-001",
+                "task_type": "agent"
             }
             """;
 
@@ -330,7 +328,6 @@ public class MessageDeserializationTests
         await Assert.That(task.SessionId).IsEqualTo("sess-001");
         await Assert.That(task.ToolUseId).IsEqualTo("tool-001");
         await Assert.That(task.TaskType).IsEqualTo("agent");
-        // Also a SystemMessage
         await Assert.That(task.Subtype).IsEqualTo("task_started");
     }
 
@@ -341,18 +338,16 @@ public class MessageDeserializationTests
             {
                 "type": "system",
                 "subtype": "task_progress",
-                "data": {
-                    "task_id": "task-001",
-                    "description": "Still running",
-                    "uuid": "msg-002",
-                    "session_id": "sess-001",
-                    "usage": {
-                        "total_tokens": 5000,
-                        "tool_uses": 3,
-                        "duration_ms": 12000
-                    },
-                    "last_tool_name": "Bash"
-                }
+                "task_id": "task-001",
+                "description": "Still running",
+                "uuid": "msg-002",
+                "session_id": "sess-001",
+                "usage": {
+                    "total_tokens": 5000,
+                    "tool_uses": 3,
+                    "duration_ms": 12000
+                },
+                "last_tool_name": "Bash"
             }
             """;
 
@@ -374,18 +369,16 @@ public class MessageDeserializationTests
             {
                 "type": "system",
                 "subtype": "task_notification",
-                "data": {
-                    "task_id": "task-001",
-                    "status": "completed",
-                    "output_file": "/tmp/output.txt",
-                    "summary": "Tests passed",
-                    "uuid": "msg-003",
-                    "session_id": "sess-001",
-                    "usage": {
-                        "total_tokens": 10000,
-                        "tool_uses": 7,
-                        "duration_ms": 30000
-                    }
+                "task_id": "task-001",
+                "status": "completed",
+                "output_file": "/tmp/output.txt",
+                "summary": "Tests passed",
+                "uuid": "msg-003",
+                "session_id": "sess-001",
+                "usage": {
+                    "total_tokens": 10000,
+                    "tool_uses": 7,
+                    "duration_ms": 30000
                 }
             }
             """;
@@ -400,6 +393,42 @@ public class MessageDeserializationTests
         await Assert.That(task.Summary).IsEqualTo("Tests passed");
         await Assert.That(task.Usage).IsNotNull();
         await Assert.That(task.Usage!.Value.TotalTokens).IsEqualTo(10000);
+    }
+
+    [Test]
+    public async Task TaskStarted_RealCliFormat_Deserializes()
+    {
+        const string json = """{"type":"system","subtype":"task_started","task_id":"ab407c9b6dfa95b0f","tool_use_id":"toolu_01Qt8PwW5e1gZQQo8TP1H84p","description":"Summarize Claude.cs","task_type":"local_agent","prompt":"Read the file.","uuid":"6765755e-4900-49df-afd7-f9eb000ee785","session_id":"73bdf15d-7f53-4e9f-b6ab-87c01a9165aa"}""";
+
+        var msg = (TaskStartedMessage)ClaudeJsonOptions.DeserializeMessage(json)!;
+
+        await Assert.That(msg.TaskId).IsEqualTo("ab407c9b6dfa95b0f");
+        await Assert.That(msg.TaskType).IsEqualTo("local_agent");
+        await Assert.That(msg.Description).IsEqualTo("Summarize Claude.cs");
+    }
+
+    [Test]
+    public async Task TaskProgress_RealCliFormat_Deserializes()
+    {
+        const string json = """{"type":"system","subtype":"task_progress","task_id":"ab407c9b6dfa95b0f","tool_use_id":"toolu_01Qt8PwW5e1gZQQo8TP1H84p","description":"Working...","uuid":"uuid-2","session_id":"sess-1","usage":{"total_tokens":8000,"tool_uses":2,"duration_ms":5000},"last_tool_name":"Read"}""";
+
+        var msg = (TaskProgressMessage)ClaudeJsonOptions.DeserializeMessage(json)!;
+
+        await Assert.That(msg.TaskId).IsEqualTo("ab407c9b6dfa95b0f");
+        await Assert.That(msg.Usage.TotalTokens).IsEqualTo(8000);
+        await Assert.That(msg.LastToolName).IsEqualTo("Read");
+    }
+
+    [Test]
+    public async Task TaskNotification_RealCliFormat_Deserializes()
+    {
+        const string json = """{"type":"system","subtype":"task_notification","task_id":"ab407c9b6dfa95b0f","tool_use_id":"toolu_01Qt8PwW5e1gZQQo8TP1H84p","status":"completed","output_file":"","summary":"Done.","uuid":"uuid-3","session_id":"sess-1"}""";
+
+        var msg = (TaskNotificationMessage)ClaudeJsonOptions.DeserializeMessage(json)!;
+
+        await Assert.That(msg.TaskId).IsEqualTo("ab407c9b6dfa95b0f");
+        await Assert.That(msg.Status).IsEqualTo("completed");
+        await Assert.That(msg.Summary).IsEqualTo("Done.");
     }
 
     [Test]

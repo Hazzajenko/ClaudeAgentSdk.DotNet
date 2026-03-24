@@ -10,40 +10,49 @@ async Task CodeReviewerExample()
 {
     Console.WriteLine("=== Code Reviewer Agent Example ===");
 
+    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+
     var options = new ClaudeClientOptions
     {
+        PermissionMode = PermissionMode.AcceptEdits,
+        MaxTurns = 5,
         Agents = new Dictionary<string, AgentDefinition>
         {
             ["code-reviewer"] = new()
             {
                 Description = "Reviews code for best practices and potential issues",
-                Prompt = "You are a code reviewer. Analyze code for bugs, performance issues, "
-                    + "security vulnerabilities, and adherence to best practices. "
-                    + "Provide constructive feedback.",
-                Tools = ["Read", "Grep"],
+                Prompt = "You are a code reviewer. Be concise.",
+                Tools = ["Read"],
                 Model = AgentModel.Sonnet,
             },
         },
     };
 
-    await foreach (var message in Claude.QueryAsync(
-        "Use the code-reviewer agent to review the code in src/ClaudeAgentSdk/Claude.cs",
-        options))
+    try
     {
-        switch (message)
+        await foreach (var message in Claude.QueryAsync(
+            "Use the code-reviewer agent to summarize src/ClaudeAgentSdk/Claude.cs in 2 sentences",
+            options, cts.Token))
         {
-            case AssistantMessage { Content: var content }:
-                foreach (var block in content)
-                {
-                    if (block is TextBlock { Text: var text })
-                        Console.WriteLine($"Claude: {text}");
-                }
-                break;
+            switch (message)
+            {
+                case AssistantMessage { Content: var content }:
+                    foreach (var block in content)
+                    {
+                        if (block is TextBlock { Text: var text })
+                            Console.WriteLine($"Claude: {text}");
+                    }
+                    break;
 
-            case ResultMessage { TotalCostUsd: > 0 and var cost }:
-                Console.WriteLine($"\nCost: ${cost:F4}");
-                break;
+                case ResultMessage { TotalCostUsd: > 0 and var cost }:
+                    Console.WriteLine($"\nCost: ${cost:F4}");
+                    break;
+            }
         }
+    }
+    catch (OperationCanceledException)
+    {
+        Console.WriteLine("\nTIMEOUT: exceeded 60s");
     }
 
     Console.WriteLine();
@@ -53,39 +62,49 @@ async Task DocumentationWriterExample()
 {
     Console.WriteLine("=== Documentation Writer Agent Example ===");
 
+    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+
     var options = new ClaudeClientOptions
     {
+        PermissionMode = PermissionMode.AcceptEdits,
+        MaxTurns = 5,
         Agents = new Dictionary<string, AgentDefinition>
         {
             ["doc-writer"] = new()
             {
-                Description = "Writes comprehensive documentation",
-                Prompt = "You are a technical documentation expert. Write clear, comprehensive "
-                    + "documentation with examples. Focus on clarity and completeness.",
-                Tools = ["Read", "Write", "Edit"],
+                Description = "Explains code concepts concisely",
+                Prompt = "You are a documentation writer. Be concise.",
+                Tools = ["Read"],
                 Model = AgentModel.Sonnet,
             },
         },
     };
 
-    await foreach (var message in Claude.QueryAsync(
-        "Use the doc-writer agent to explain what AgentDefinition is used for",
-        options))
+    try
     {
-        switch (message)
+        await foreach (var message in Claude.QueryAsync(
+            "Use the doc-writer agent to explain what AgentDefinition is in 1 sentence",
+            options, cts.Token))
         {
-            case AssistantMessage { Content: var content }:
-                foreach (var block in content)
-                {
-                    if (block is TextBlock { Text: var text })
-                        Console.WriteLine($"Claude: {text}");
-                }
-                break;
+            switch (message)
+            {
+                case AssistantMessage { Content: var content }:
+                    foreach (var block in content)
+                    {
+                        if (block is TextBlock { Text: var text })
+                            Console.WriteLine($"Claude: {text}");
+                    }
+                    break;
 
-            case ResultMessage { TotalCostUsd: > 0 and var cost }:
-                Console.WriteLine($"\nCost: ${cost:F4}");
-                break;
+                case ResultMessage { TotalCostUsd: > 0 and var cost }:
+                    Console.WriteLine($"\nCost: ${cost:F4}");
+                    break;
+            }
         }
+    }
+    catch (OperationCanceledException)
+    {
+        Console.WriteLine("\nTIMEOUT: exceeded 60s");
     }
 
     Console.WriteLine();
@@ -95,8 +114,12 @@ async Task MultipleAgentsExample()
 {
     Console.WriteLine("=== Multiple Agents Example ===");
 
+    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+
     var options = new ClaudeClientOptions
     {
+        PermissionMode = PermissionMode.AcceptEdits,
+        MaxTurns = 5,
         Agents = new Dictionary<string, AgentDefinition>
         {
             ["analyzer"] = new()
@@ -115,24 +138,31 @@ async Task MultipleAgentsExample()
         },
     };
 
-    await foreach (var message in Claude.QueryAsync(
-        "Use the analyzer agent to find all C# files in the examples/ directory",
-        options))
+    try
     {
-        switch (message)
+        await foreach (var message in Claude.QueryAsync(
+            "Use the analyzer agent to find all C# files in the examples/ directory",
+            options, cts.Token))
         {
-            case AssistantMessage { Content: var content }:
-                foreach (var block in content)
-                {
-                    if (block is TextBlock { Text: var text })
-                        Console.WriteLine($"Claude: {text}");
-                }
-                break;
+            switch (message)
+            {
+                case AssistantMessage { Content: var content }:
+                    foreach (var block in content)
+                    {
+                        if (block is TextBlock { Text: var text })
+                            Console.WriteLine($"Claude: {text}");
+                    }
+                    break;
 
-            case ResultMessage { TotalCostUsd: > 0 and var cost }:
-                Console.WriteLine($"\nCost: ${cost:F4}");
-                break;
+                case ResultMessage { TotalCostUsd: > 0 and var cost }:
+                    Console.WriteLine($"\nCost: ${cost:F4}");
+                    break;
+            }
         }
+    }
+    catch (OperationCanceledException)
+    {
+        Console.WriteLine("\nTIMEOUT: exceeded 60s");
     }
 
     Console.WriteLine();
