@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -24,6 +25,26 @@ public sealed record AssistantMessage : Message
     public string? ParentToolUseId { get; init; }
     public string? Error { get; init; }
     public Usage? Usage { get; init; }
+
+    /// <summary>
+    /// Concatenated text from all <see cref="TextBlock"/> content. Null if no text blocks.
+    /// </summary>
+    public string? Text
+    {
+        get
+        {
+            string? first = null;
+            StringBuilder? sb = null;
+            foreach (var block in Content)
+            {
+                if (block is not TextBlock { Text: var t }) continue;
+                if (first is null) { first = t; continue; }
+                sb ??= new StringBuilder(first);
+                sb.Append(t);
+            }
+            return sb?.ToString() ?? first;
+        }
+    }
 }
 
 public record SystemMessage : Message
