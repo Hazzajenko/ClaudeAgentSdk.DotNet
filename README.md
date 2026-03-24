@@ -143,22 +143,25 @@ var options = new ClaudeClientOptions
 Define tools that run inside your application with zero IPC overhead. No subprocess management, no external server processes.
 
 ```csharp
+using System.Text.Json.Serialization;
 using ClaudeAgentSdk.Mcp;
 using ClaudeAgentSdk.Mcp.Sdk;
 
-var schema = McpJsonSchema.Object(
-    McpJsonSchema.Property("a", McpJsonSchema.Number("First number")),
-    McpJsonSchema.Property("b", McpJsonSchema.Number("Second number")));
+// Define input type — schema auto-derived from JsonTypeInfo
+public sealed record TwoNumbers
+{
+    [JsonPropertyName("a")] public double A { get; init; }
+    [JsonPropertyName("b")] public double B { get; init; }
+}
+
+[JsonSerializable(typeof(TwoNumbers))]
+internal sealed partial class CalcContext : JsonSerializerContext;
 
 var tools = new SdkMcpTool[]
 {
-    SdkMcpTool.Create("add", "Add two numbers", schema,
-        (input, _) =>
-        {
-            var a = input.GetProperty("a").GetDouble();
-            var b = input.GetProperty("b").GetDouble();
-            return Task.FromResult(McpToolResult.Text($"{a + b}"));
-        }),
+    SdkMcpTool.Create<TwoNumbers>("add", "Add two numbers",
+        CalcContext.Default.TwoNumbers,
+        (input, _) => McpToolResult.Text($"{input.A + input.B}")),
 };
 
 var calculator = McpSdkServerConfig.Create("calculator", tools);
