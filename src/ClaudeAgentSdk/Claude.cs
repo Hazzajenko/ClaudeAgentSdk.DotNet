@@ -107,7 +107,8 @@ public static class Claude
 
     /// <summary>
     /// Send a query and return a deserialized structured output of type <typeparamref name="T"/>.
-    /// Requires <see cref="ClaudeClientOptions.OutputFormatSchema"/> to be set.
+    /// Auto-derives the JSON schema from <paramref name="jsonTypeInfo"/> when
+    /// <see cref="ClaudeClientOptions.OutputFormatSchema"/> is not explicitly set.
     /// </summary>
     public static async Task<T?> QueryAsync<T>(
         string prompt,
@@ -115,6 +116,16 @@ public static class Claude
         ClaudeClientOptions? options = null,
         CancellationToken cancellationToken = default)
     {
+        options ??= new ClaudeClientOptions();
+
+        if (options.OutputFormatSchema is null)
+        {
+            options = options with
+            {
+                OutputFormatSchema = Json.JsonSchemaDeriver.FromTypeInfo(jsonTypeInfo)
+            };
+        }
+
         await foreach (var message in QueryAsync(prompt, options, cancellationToken))
         {
             if (message is ResultMessage { StructuredOutput: { } output })
