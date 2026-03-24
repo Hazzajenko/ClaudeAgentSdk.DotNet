@@ -32,6 +32,32 @@ internal static class WireMapper
         ToolUseResult = wire.ToolUseResult
     };
 
+    /// <summary>
+    /// Parse a user message directly from JsonElement, bypassing the source-gen
+    /// UserMessageWire deserializer. The CLI may emit tool_result content blocks
+    /// with "type" not as the first property, which breaks STJ polymorphic
+    /// deserialization of List&lt;ContentBlockWire&gt;.
+    /// </summary>
+    public static UserMessage MapUserMessageFromElement(JsonElement root)
+    {
+        var message = root.GetProperty("message");
+        var content = message.GetProperty("content");
+
+        string? uuid = root.TryGetProperty("uuid", out var u) ? u.GetString() : null;
+        string? parentToolUseId = root.TryGetProperty("parent_tool_use_id", out var p)
+            ? p.GetString() : null;
+        JsonElement? toolUseResult = root.TryGetProperty("tool_use_result", out var t)
+            ? t.Clone() : null;
+
+        return new UserMessage
+        {
+            Content = MapUserContent(content),
+            Uuid = uuid,
+            ParentToolUseId = parentToolUseId,
+            ToolUseResult = toolUseResult
+        };
+    }
+
     public static ResultMessage MapResultMessage(ResultMessageWire wire) => new()
     {
         Subtype = wire.Subtype,
@@ -136,11 +162,45 @@ internal static class WireMapper
     private static object MapUserContent(JsonElement content) => content.ValueKind switch
     {
         JsonValueKind.String => content.GetString()!,
-        JsonValueKind.Array => content
-            .Deserialize(ClaudeJsonContext.Default.ListContentBlockWire)!
-            .Select(MapContentBlock)
+        JsonValueKind.Array => content.EnumerateArray()
+            .Select(DeserializeContentBlock)
             .ToList()
             .AsReadOnly(),
         _ => throw new JsonException($"UserMessage.Content must be string or array, got {content.ValueKind}")
     };
+
+    /// <summary>
+    /// Deserialize a content block by dispatching on its "type" property manually.
+    /// The CLI may emit content blocks with "type" not as the first property
+    /// (e.g. tool_result has tool_use_id first), which breaks STJ polymorphic
+    /// deserialization that requires the discriminator to be the first property.
+    /// </summary>
+    private static ContentBlock DeserializeContentBlock(JsonElement el)
+    {
+        string type = el.GetProperty("type").GetString()
+            ?? throw new JsonException("Content block missing 'type'");
+
+        return type switch
+        {
+            "text" => new TextBlock { Text = el.GetProperty("text").GetString()! },
+            "thinking" => new ThinkingBlock
+            {
+                Thinking = el.GetProperty("thinking").GetString()!,
+                Signature = el.GetProperty("signature").GetString()!
+            },
+            "tool_use" => new ToolUseBlock
+            {
+                Id = el.GetProperty("id").GetString()!,
+                Name = el.GetProperty("name").GetString()!,
+                Input = el.GetProperty("input").Clone()
+            },
+            "tool_result" => new ToolResultBlock
+            {
+                ToolUseId = el.GetProperty("tool_use_id").GetString()!,
+                Content = el.TryGetProperty("content", out var c) ? c.Clone() : null,
+                IsError = el.TryGetProperty("is_error", out var e) ? e.GetBoolean() : null
+            },
+            _ => throw new JsonException($"Unknown content block type: '{type}'")
+        };
+    }
 }
