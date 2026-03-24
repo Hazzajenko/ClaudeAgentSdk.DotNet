@@ -24,6 +24,24 @@ public sealed record HookMatcher
     public string? Matcher { get; init; }
     public required IReadOnlyList<HookCallback> Hooks { get; init; }
     public double? TimeoutSeconds { get; init; }
+
+    /// <summary>Create with async callback.</summary>
+    public static HookMatcher Create(
+        string? matcher, HookCallback callback, double? timeoutSeconds = null) => new()
+    {
+        Matcher = matcher,
+        Hooks = [callback],
+        TimeoutSeconds = timeoutSeconds
+    };
+
+    /// <summary>Create with sync callback (wraps in Task.FromResult).</summary>
+    public static HookMatcher Create(
+        string? matcher, Func<HookInput, HookOutput> syncCallback, double? timeoutSeconds = null) => new()
+    {
+        Matcher = matcher,
+        Hooks = [(input, _) => Task.FromResult(syncCallback(input))],
+        TimeoutSeconds = timeoutSeconds
+    };
 }
 
 internal static class HookEventExtensions
