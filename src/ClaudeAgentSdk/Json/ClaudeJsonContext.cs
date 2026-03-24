@@ -6,10 +6,6 @@ namespace ClaudeAgentSdk.Json;
 
 [JsonSerializable(typeof(ContentBlockWire))]
 [JsonSerializable(typeof(List<ContentBlockWire>))]
-[JsonSerializable(typeof(TextBlockWire))]
-[JsonSerializable(typeof(ThinkingBlockWire))]
-[JsonSerializable(typeof(ToolUseBlockWire))]
-[JsonSerializable(typeof(ToolResultBlockWire))]
 [JsonSerializable(typeof(AssistantMessageWire))]
 [JsonSerializable(typeof(UserMessageWire))]
 [JsonSerializable(typeof(SystemMessageWire))]
@@ -22,5 +18,6 @@ namespace ClaudeAgentSdk.Json;
 [JsonSerializable(typeof(TaskUsage))]
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower,
-    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    AllowOutOfOrderMetadataProperties = true)]
 internal partial class ClaudeJsonContext : JsonSerializerContext;

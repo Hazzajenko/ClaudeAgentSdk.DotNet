@@ -419,4 +419,248 @@ public class MessageDeserializationTests
         // Should NOT be a TaskStartedMessage
         await Assert.That(msg is TaskStartedMessage).IsFalse();
     }
+
+    [Test]
+    public async Task UserMessage_ToolResultWithOutOfOrderType_Deserializes()
+    {
+        // CLI emits tool_use_id BEFORE type — this broke STJ polymorphic deserialization
+        // before AllowOutOfOrderMetadataProperties was enabled
+        const string json = """
+            {
+                "type": "user",
+                "message": {
+                    "role": "user",
+                    "content": [
+                        {
+                            "tool_use_id": "toolu_01ABC",
+                            "type": "tool_result",
+                            "content": "Structured output provided successfully"
+                        }
+                    ]
+                },
+                "parent_tool_use_id": null
+            }
+            """;
+
+        var msg = (UserMessage)ClaudeJsonOptions.DeserializeMessage(json)!;
+        var blocks = (IReadOnlyList<ContentBlock>)msg.Content;
+
+        await Assert.That(blocks).Count().IsEqualTo(1);
+        var tr = (ToolResultBlock)blocks[0];
+        await Assert.That(tr.ToolUseId).IsEqualTo("toolu_01ABC");
+        await Assert.That(tr.Content!.Value.GetString()).IsEqualTo("Structured output provided successfully");
+    }
+
+    [Test]
+    public async Task UserMessage_MultipleContentBlocks_Deserializes()
+    {
+        const string json = """
+            {
+                "type": "user",
+                "message": {
+                    "content": [
+                        {"type": "text", "text": "Here is the result:"},
+                        {"tool_use_id": "toolu_99", "type": "tool_result", "content": "42"}
+                    ]
+                }
+            }
+            """;
+
+        var msg = (UserMessage)ClaudeJsonOptions.DeserializeMessage(json)!;
+        var blocks = (IReadOnlyList<ContentBlock>)msg.Content;
+
+        await Assert.That(blocks).Count().IsEqualTo(2);
+        await Assert.That(blocks[0]).IsTypeOf<TextBlock>();
+        await Assert.That(blocks[1]).IsTypeOf<ToolResultBlock>();
+    }
+
+    [Test]
+    public async Task ResultMessage_WithStructuredOutput_PreservesJsonElement()
+    {
+        const string json = """
+            {
+                "type": "result",
+                "subtype": "success",
+                "duration_ms": 200,
+                "duration_api_ms": 180,
+                "is_error": false,
+                "num_turns": 2,
+                "session_id": "s1",
+                "structured_output": {"name": "Alice", "age": 30, "tags": ["a", "b"]}
+            }
+            """;
+
+        var result = (ResultMessage)ClaudeJsonOptions.DeserializeMessage(json)!;
+
+        await Assert.That(result.StructuredOutput).IsNotNull();
+        await Assert.That(result.StructuredOutput!.Value.GetProperty("name").GetString()).IsEqualTo("Alice");
+        await Assert.That(result.StructuredOutput!.Value.GetProperty("age").GetInt32()).IsEqualTo(30);
+        await Assert.That(result.StructuredOutput!.Value.GetProperty("tags").GetArrayLength()).IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task AssistantMessage_ThinkingThenToolUse_Deserializes()
+    {
+        const string json = """
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {"type": "thinking", "thinking": "I need to extract data.", "signature": "sig1"},
+                        {"type": "tool_use", "id": "toolu_01X", "name": "StructuredOutput", "input": {"name": "Bob"}}
+                    ],
+                    "model": "claude-sonnet-4-6"
+                }
+            }
+            """;
+
+        var msg = (AssistantMessage)ClaudeJsonOptions.DeserializeMessage(json)!;
+
+        await Assert.That(msg.Content).Count().IsEqualTo(2);
+        await Assert.That(msg.Content[0]).IsTypeOf<ThinkingBlock>();
+        await Assert.That(msg.Content[1]).IsTypeOf<ToolUseBlock>();
+        await Assert.That(((ToolUseBlock)msg.Content[1]).Name).IsEqualTo("StructuredOutput");
+    }
+
+    [Test]
+    public async Task ControlResponse_PreservesRawElement()
+    {
+        const string json = """
+            {
+                "type": "control_response",
+                "response": {
+                    "subtype": "success",
+                    "request_id": "req_1",
+                    "response": {"commands": []}
+                }
+            }
+            """;
+
+        var msg = ClaudeJsonOptions.DeserializeMessage(json);
+
+        await Assert.That(msg).IsTypeOf<ControlResponseMessage>();
+        var cr = (ControlResponseMessage)msg!;
+        await Assert.That(cr.RawElement.GetProperty("response").GetProperty("request_id").GetString())
+            .IsEqualTo("req_1");
+    }
+
+    [Test]
+    public async Task ControlRequest_PreservesRawElement()
+    {
+        const string json = """
+            {
+                "type": "control_request",
+                "request_id": "req_2",
+                "request": {"subtype": "can_use_tool", "tool_name": "Bash"}
+            }
+            """;
+
+        var msg = ClaudeJsonOptions.DeserializeMessage(json);
+
+        await Assert.That(msg).IsTypeOf<ControlRequestMessage>();
+        var cr = (ControlRequestMessage)msg!;
+        await Assert.That(cr.RawElement.GetProperty("request").GetProperty("tool_name").GetString())
+            .IsEqualTo("Bash");
+    }
+
+    [Test]
+    public async Task ExtraUnknownProperties_AreIgnored()
+    {
+        // CLI may add new fields in future versions — they should be silently ignored
+        const string json = """
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [{"type": "text", "text": "hi"}],
+                    "model": "claude-sonnet-4-6",
+                    "future_field": true,
+                    "context_management": null
+                },
+                "parent_tool_use_id": null,
+                "session_id": "sess-999",
+                "uuid": "msg-999"
+            }
+            """;
+
+        var msg = (AssistantMessage)ClaudeJsonOptions.DeserializeMessage(json)!;
+
+        await Assert.That(((TextBlock)msg.Content[0]).Text).IsEqualTo("hi");
+    }
+
+    [Test]
+    public async Task ContentBlock_WithExtraProperties_StillDeserializes()
+    {
+        // tool_use blocks from CLI include "caller" field not in our wire type
+        const string json = """
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "toolu_01X",
+                            "name": "Read",
+                            "input": {"file_path": "/tmp/x"},
+                            "caller": {"type": "direct"}
+                        }
+                    ],
+                    "model": "claude-sonnet-4-6"
+                }
+            }
+            """;
+
+        var msg = (AssistantMessage)ClaudeJsonOptions.DeserializeMessage(json)!;
+        var tu = (ToolUseBlock)msg.Content[0];
+
+        await Assert.That(tu.Name).IsEqualTo("Read");
+    }
+
+    [Test]
+    public async Task RealCli_StructuredOutputToolUse_Deserializes()
+    {
+        // Actual CLI output for StructuredOutput tool invocation
+        const string json = """
+            {"type":"assistant","message":{"model":"claude-sonnet-4-6","id":"msg_01X","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_01Y","name":"StructuredOutput","input":{"name":"John Smith","age":35},"caller":{"type":"direct"}}],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":3,"cache_creation_input_tokens":0,"cache_read_input_tokens":15936,"output_tokens":0},"context_management":null},"parent_tool_use_id":null,"session_id":"sess-1","uuid":"uuid-1"}
+            """;
+
+        var msg = (AssistantMessage)ClaudeJsonOptions.DeserializeMessage(json)!;
+        var tu = (ToolUseBlock)msg.Content[0];
+
+        await Assert.That(tu.Name).IsEqualTo("StructuredOutput");
+        await Assert.That(tu.Input.GetProperty("name").GetString()).IsEqualTo("John Smith");
+        await Assert.That(tu.Input.GetProperty("age").GetInt32()).IsEqualTo(35);
+    }
+
+    [Test]
+    public async Task RealCli_ToolResultFromCli_Deserializes()
+    {
+        // Actual CLI output: CLI-generated tool_result (tool_use_id before type!)
+        const string json = """
+            {"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_01Y","type":"tool_result","content":"Structured output provided successfully"}]},"parent_tool_use_id":null,"session_id":"sess-1","uuid":"uuid-2","timestamp":"2026-03-24T05:15:36.489Z","tool_use_result":"Structured output provided successfully"}
+            """;
+
+        var msg = (UserMessage)ClaudeJsonOptions.DeserializeMessage(json)!;
+        var blocks = (IReadOnlyList<ContentBlock>)msg.Content;
+
+        await Assert.That(blocks).Count().IsEqualTo(1);
+        var tr = (ToolResultBlock)blocks[0];
+        await Assert.That(tr.ToolUseId).IsEqualTo("toolu_01Y");
+        await Assert.That(msg.ToolUseResult!.Value.GetString()).IsEqualTo("Structured output provided successfully");
+    }
+
+    [Test]
+    public async Task RealCli_ResultWithStructuredOutput_Deserializes()
+    {
+        // Actual CLI output: final result with structured_output
+        const string json = """
+            {"type":"result","subtype":"success","is_error":false,"duration_ms":5499,"duration_api_ms":4937,"num_turns":2,"result":"Extracted info.","stop_reason":"end_turn","session_id":"sess-1","total_cost_usd":0.067,"usage":{"input_tokens":4},"structured_output":{"name":"John Smith","age":35},"fast_mode_state":"off","uuid":"uuid-3"}
+            """;
+
+        var result = (ResultMessage)ClaudeJsonOptions.DeserializeMessage(json)!;
+
+        await Assert.That(result.NumTurns).IsEqualTo(2);
+        await Assert.That(result.StructuredOutput).IsNotNull();
+        await Assert.That(result.StructuredOutput!.Value.GetProperty("name").GetString()).IsEqualTo("John Smith");
+        await Assert.That(result.TotalCostUsd).IsEqualTo(0.067);
+    }
 }

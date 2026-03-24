@@ -25,7 +25,8 @@ public static class ClaudeJsonOptions
         {
             "assistant" => WireMapper.MapAssistantMessage(
                 root.Deserialize(ClaudeJsonContext.Default.AssistantMessageWire)!),
-            "user" => WireMapper.MapUserMessageFromElement(root),
+            "user" => WireMapper.MapUserMessage(
+                root.Deserialize(ClaudeJsonContext.Default.UserMessageWire)!),
             "system" => WireMapper.MapSystemMessage(
                 root.Deserialize(ClaudeJsonContext.Default.SystemMessageWire)!,
                 root.Clone()),
