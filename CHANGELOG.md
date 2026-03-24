@@ -7,6 +7,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.0.8] - 2026-03-24
+
 ### Added
 
 - `AssistantMessage.Text` — concatenated text from all `TextBlock` content, null when none. Replaces the 5-line nested pattern match every user had to write.
