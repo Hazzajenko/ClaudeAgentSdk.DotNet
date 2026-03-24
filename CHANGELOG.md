@@ -15,6 +15,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - CLI version check on connect — verifies `claude --version` >= 2.0.0 before starting, throws `CliVersionException` if too old. Skip with `CLAUDE_AGENT_SDK_SKIP_VERSION_CHECK=1` env var. Skipped when custom transport is injected.
 - `ClaudeClientOptions.Settings` — pass arbitrary settings JSON string or file path via `--settings`. When both `Settings` and `Sandbox` are set, merges sandbox config into the settings JSON.
 - `ClaudeClientOptions.AddDirectories` — specify additional project directories via `--add-dir` for multi-root workspaces
+- `TestingWithTransport` example project — demonstrates testing SDK-dependent code without the CLI using `FakeTransport`, an `ITransport` mock with auto init handshake and canned JSON responses
 
 ### Changed
 
