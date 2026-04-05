@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 
@@ -14,7 +15,7 @@ internal static class SessionMutations
         if (SessionStorage.ValidateUuid(sessionId) is null)
             throw new ArgumentException($"Invalid session_id: {sessionId}", nameof(sessionId));
 
-        string stripped = title.Trim();
+        string stripped = SanitizeUnicode(title).Trim();
         if (string.IsNullOrEmpty(stripped))
             throw new ArgumentException("title must be non-empty", nameof(title));
 
@@ -29,13 +30,39 @@ internal static class SessionMutations
 
         if (tag is not null)
         {
-            tag = tag.Trim();
+            tag = SanitizeUnicode(tag).Trim();
             if (string.IsNullOrEmpty(tag))
                 throw new ArgumentException("tag must be non-empty (use null to clear)", nameof(tag));
         }
 
         string data = BuildTagJson(sessionId, tag ?? "");
         AppendToSession(sessionId, data, directory);
+    }
+
+    private static string SanitizeUnicode(string input)
+    {
+        var sb = new StringBuilder(input.Length);
+        foreach (char c in input)
+        {
+            UnicodeCategory category = char.GetUnicodeCategory(c);
+            if (category is UnicodeCategory.Format
+                or UnicodeCategory.PrivateUse
+                or UnicodeCategory.Surrogate)
+            {
+                continue;
+            }
+
+            if (c is (>= '\u200B' and <= '\u200F')
+                or (>= '\u202A' and <= '\u202E')
+                or (>= '\u2060' and <= '\u2069')
+                or '\uFEFF')
+            {
+                continue;
+            }
+
+            sb.Append(c);
+        }
+        return sb.ToString();
     }
 
     private static string BuildCustomTitleJson(string sessionId, string title)
