@@ -544,6 +544,22 @@ public class CliArgsBuilderTests
     }
 
     [Test]
+    public async Task MaxBufferSize_ExposedOnOptions()
+    {
+        var options = new ClaudeClientOptions { MaxBufferSize = 2048 };
+
+        await Assert.That(options.MaxBufferSize).IsEqualTo(2048);
+    }
+
+    [Test]
+    public async Task MaxBufferSize_DefaultIsNull()
+    {
+        var options = new ClaudeClientOptions();
+
+        await Assert.That(options.MaxBufferSize).IsNull();
+    }
+
+    [Test]
     public async Task BuildEnvironmentVariables_AlwaysSetsClaudeAgentSdkVersion()
     {
         var env = CliArgsBuilder.BuildEnvironmentVariables(new ClaudeClientOptions());

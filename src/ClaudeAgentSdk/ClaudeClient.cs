@@ -257,7 +257,8 @@ public sealed class ClaudeClient : IAsyncDisposable
                 args,
                 _options.WorkingDirectory,
                 envVars,
-                _options.StderrCallback);
+                _options.StderrCallback,
+                maxBufferSize: _options.MaxBufferSize);
 
             await cliTransport.ConnectAsync(cancellationToken);
             _transport = cliTransport;

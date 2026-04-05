@@ -39,6 +39,7 @@ public sealed record ClaudeClientOptions
     public IReadOnlyList<string>? AddDirectories { get; init; }
     public IReadOnlyDictionary<string, string?>? ExtraArgs { get; init; }
     public JsonElement? OutputFormatSchema { get; init; }
+    public int? MaxBufferSize { get; init; }
     public IReadOnlyDictionary<string, McpServerConfig>? McpServers { get; init; }
     public IReadOnlyDictionary<string, AgentDefinition>? Agents { get; init; }
     public IReadOnlyDictionary<HookEvent, IReadOnlyList<HookMatcher>>? Hooks { get; init; }

@@ -16,6 +16,7 @@ internal sealed class CliTransport : ITransport
     private readonly IDictionary<string, string>? _environmentVariables;
     private readonly Action<string>? _stderrCallback;
     private readonly bool _redirectStdin;
+    private readonly int? _maxBufferSize;
     private Process? _process;
     private bool _disposed;
 
@@ -25,7 +26,8 @@ internal sealed class CliTransport : ITransport
         string? workingDirectory = null,
         IDictionary<string, string>? environmentVariables = null,
         Action<string>? stderrCallback = null,
-        bool redirectStdin = true)
+        bool redirectStdin = true,
+        int? maxBufferSize = null)
     {
         _cliPath = cliPath;
         _args = args;
@@ -33,6 +35,7 @@ internal sealed class CliTransport : ITransport
         _environmentVariables = environmentVariables;
         _stderrCallback = stderrCallback;
         _redirectStdin = redirectStdin;
+        _maxBufferSize = maxBufferSize;
     }
 
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
@@ -101,8 +104,9 @@ internal sealed class CliTransport : ITransport
             throw new CliConnectionException("Not connected");
         }
 
+        int bufferSize = _maxBufferSize ?? 1024 * 1024;
         await foreach (var message in JsonStreamReader.ReadAllAsync(
-            _process.StandardOutput, cancellationToken: cancellationToken))
+            _process.StandardOutput, bufferSize, cancellationToken))
         {
             yield return message;
         }
