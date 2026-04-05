@@ -7,6 +7,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-04-05
+
 ### Added
 
 - `PermissionUpdate`, `PermissionRuleValue` types and `PermissionUpdateType` enum for typed permission rule management — programmatically add/remove/replace permission rules, change permission mode, or modify allowed directories from `CanUseTool` callbacks
