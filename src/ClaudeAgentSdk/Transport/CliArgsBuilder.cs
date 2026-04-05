@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using ClaudeAgentSdk.Mcp;
@@ -322,6 +323,10 @@ internal static class CliArgsBuilder
         {
             envVars["CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING"] = "true";
         }
+
+        envVars["CLAUDE_AGENT_SDK_VERSION"] = typeof(CliArgsBuilder).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+            ?.InformationalVersion ?? "unknown";
 
         return envVars;
     }

@@ -542,4 +542,15 @@ public class CliArgsBuilderTests
 
         await Assert.That(args).DoesNotContain("--add-dir");
     }
+
+    [Test]
+    public async Task BuildEnvironmentVariables_AlwaysSetsClaudeAgentSdkVersion()
+    {
+        var env = CliArgsBuilder.BuildEnvironmentVariables(new ClaudeClientOptions());
+
+        await Assert.That(env).ContainsKey("CLAUDE_AGENT_SDK_VERSION");
+        await Assert.That(env["CLAUDE_AGENT_SDK_VERSION"]).IsNotNull();
+        await Assert.That(env["CLAUDE_AGENT_SDK_VERSION"]).IsNotEqualTo("");
+        await Assert.That(env["CLAUDE_AGENT_SDK_VERSION"]).IsNotEqualTo("unknown");
+    }
 }
