@@ -43,11 +43,7 @@ internal static class CliArgsBuilder
             args.Add(options.Model);
         }
 
-        if (options.OutputFormatSchema is { } schema)
-        {
-            args.Add("--json-schema");
-            args.Add(schema.GetRawText());
-        }
+        AddJsonSchemaArgs(args, options);
 
         if (options.MaxBudgetUsd is not null)
         {
@@ -272,11 +268,7 @@ internal static class CliArgsBuilder
             args.Add(McpConfigSerializer.Serialize(options.McpServers));
         }
 
-        if (options.OutputFormatSchema is { } schema)
-        {
-            args.Add("--json-schema");
-            args.Add(schema.GetRawText());
-        }
+        AddJsonSchemaArgs(args, options);
 
         if (options.ExtraArgs is { Count: > 0 })
         {
@@ -292,6 +284,21 @@ internal static class CliArgsBuilder
         args.Add(options.SettingSources is { Count: > 0 }
             ? string.Join(",", options.SettingSources)
             : "");
+    }
+
+    private static void AddJsonSchemaArgs(List<string> args, ClaudeClientOptions options)
+    {
+        if (options.OutputFormatSchema is { } schema)
+        {
+            args.Add("--json-schema");
+            args.Add(schema.GetRawText());
+        }
+        else if (options.OutputFormat is { } format
+            && format.TryGetProperty("schema", out var formatSchema))
+        {
+            args.Add("--json-schema");
+            args.Add(formatSchema.GetRawText());
+        }
     }
 
     private static string SerializeSandboxSettings(SandboxSettings sandbox)

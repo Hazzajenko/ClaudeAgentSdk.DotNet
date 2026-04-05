@@ -544,6 +544,55 @@ public class CliArgsBuilderTests
     }
 
     [Test]
+    public async Task OutputFormat_WithSchema_ExtractsJsonSchema()
+    {
+        using var doc = JsonDocument.Parse("""{"type":"json","schema":{"type":"object","properties":{"name":{"type":"string"}}}}""");
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions
+        {
+            OutputFormat = doc.RootElement.Clone()
+        });
+
+        int idx = args.IndexOf("--json-schema");
+        await Assert.That(idx).IsGreaterThanOrEqualTo(0);
+
+        string schema = args[idx + 1];
+        await Assert.That(schema).Contains("\"type\":\"object\"");
+        await Assert.That(schema).Contains("\"name\"");
+    }
+
+    [Test]
+    public async Task OutputFormatSchema_TakesPrecedence_OverOutputFormat()
+    {
+        using var formatDoc = JsonDocument.Parse("""{"type":"json","schema":{"type":"string"}}""");
+        using var schemaDoc = JsonDocument.Parse("""{"type":"object","properties":{"id":{"type":"number"}}}""");
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions
+        {
+            OutputFormat = formatDoc.RootElement.Clone(),
+            OutputFormatSchema = schemaDoc.RootElement.Clone()
+        });
+
+        int idx = args.IndexOf("--json-schema");
+        await Assert.That(idx).IsGreaterThanOrEqualTo(0);
+
+        string schema = args[idx + 1];
+        // OutputFormatSchema wins — should have "id", not "name"
+        await Assert.That(schema).Contains("\"id\"");
+        await Assert.That(schema).DoesNotContain("\"string\"");
+    }
+
+    [Test]
+    public async Task OutputFormat_WithoutSchema_NoJsonSchemaArg()
+    {
+        using var doc = JsonDocument.Parse("""{"type":"text"}""");
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions
+        {
+            OutputFormat = doc.RootElement.Clone()
+        });
+
+        await Assert.That(args).DoesNotContain("--json-schema");
+    }
+
+    [Test]
     public async Task MaxBufferSize_ExposedOnOptions()
     {
         var options = new ClaudeClientOptions { MaxBufferSize = 2048 };
