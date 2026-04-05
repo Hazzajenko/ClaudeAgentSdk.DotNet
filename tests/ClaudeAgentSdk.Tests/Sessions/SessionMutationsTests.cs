@@ -98,6 +98,31 @@ public class SessionMutationsTests
     }
 
     [Test]
+    public async Task Rename_DeletedSessionFile_ThrowsFileNotFound()
+    {
+        string projectDir = CreateProjectWithSession("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+        File.Delete(Path.Combine(projectDir, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.jsonl"));
+
+        Assert.Throws<FileNotFoundException>(() =>
+            ClaudeAgentSdk.Sessions.Sessions.Rename("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", "Title"));
+
+        // Verify no orphan file was created
+        await Assert.That(File.Exists(Path.Combine(projectDir, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.jsonl"))).IsFalse();
+    }
+
+    [Test]
+    public async Task Tag_DeletedSessionFile_DoesNotCreateOrphan()
+    {
+        string projectDir = CreateProjectWithSession("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+        File.Delete(Path.Combine(projectDir, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.jsonl"));
+
+        Assert.Throws<FileNotFoundException>(() =>
+            ClaudeAgentSdk.Sessions.Sessions.Tag("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", "tag"));
+
+        await Assert.That(File.Exists(Path.Combine(projectDir, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.jsonl"))).IsFalse();
+    }
+
+    [Test]
     public async Task Rename_StripsZeroWidthChars()
     {
         string projectDir = CreateProjectWithSession("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
