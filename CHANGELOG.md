@@ -7,6 +7,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- `CLAUDE_AGENT_SDK_VERSION` environment variable set on the CLI subprocess for telemetry/debugging (reads assembly version from MinVer)
+- `CliNotFoundException.SearchedPath`, `CliConnectionException.ExitCode`/`Stderr`, `MessageParseException.Line` — structured context fields on exception types for programmatic error handling. `MessageParseException` now wraps JSON deserialization errors (previously raw `JsonException`) with the failed line truncated to 100 chars.
+- Unicode sanitization on session `Rename`/`Tag` — strips dangerous Unicode (format chars, directional marks, private-use area, zero-width joiners) before writing, matching Python SDK behavior
+- `ClaudeClient.ReceiveResponseAsync()` — async iterator that yields messages and auto-stops after the first `ResultMessage`. Use for multi-turn flows where you write user messages directly via the control handler.
+- `ClaudeClient.GetServerInfo()` — returns the initialization handshake result (`JsonElement`) from the CLI
+- `ClaudeClientOptions.MaxBufferSize` — configurable CLI stdout buffer limit (default 1MB). Threaded through to `JsonStreamReader`.
+- `ClaudeClientOptions.OutputFormat` — accepts the full output format dict (e.g. `{"type":"json","schema":{...}}`). Extracts `schema` for `--json-schema` when `OutputFormatSchema` is not set. `OutputFormatSchema` takes precedence when both are set.
+
 ## [0.1.0] - 2026-04-05
 
 ### Added
