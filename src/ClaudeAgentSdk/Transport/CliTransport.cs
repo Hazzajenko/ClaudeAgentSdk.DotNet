@@ -82,7 +82,8 @@ internal sealed class CliTransport : ITransport
         {
             throw new CliNotFoundException(
                 $"Claude Code CLI not found at '{_cliPath}'. Install with: npm install -g @anthropic-ai/claude-code",
-                ex);
+                ex)
+                { SearchedPath = _cliPath };
         }
 
         // Read stderr in background (only when stderr is redirected)

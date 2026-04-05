@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using ClaudeAgentSdk.Exceptions;
 using ClaudeAgentSdk.Json;
 using ClaudeAgentSdk.Messages;
 
@@ -60,7 +61,19 @@ internal static class JsonStreamReader
             string completeJson = jsonBuffer;
             jsonBuffer = "";
 
-            var message = ClaudeJsonOptions.DeserializeMessage(completeJson);
+            Message? message;
+            try
+            {
+                message = ClaudeJsonOptions.DeserializeMessage(completeJson);
+            }
+            catch (Exception ex)
+            {
+                string truncated = completeJson.Length > 100 ? completeJson[..100] : completeJson;
+                throw new MessageParseException(
+                    $"Failed to parse CLI JSON: {ex.Message}", ex)
+                    { Line = truncated };
+            }
+
             if (message is not null)
             {
                 yield return message;

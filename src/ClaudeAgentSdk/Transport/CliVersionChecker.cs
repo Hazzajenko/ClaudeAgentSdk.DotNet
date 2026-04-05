@@ -34,7 +34,8 @@ internal static partial class CliVersionChecker
             };
 
             using var process = Process.Start(startInfo)
-                ?? throw new CliNotFoundException($"Failed to start '{cliPath}' for version check");
+                ?? throw new CliNotFoundException($"Failed to start '{cliPath}' for version check")
+                    { SearchedPath = cliPath };
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(TimeSpan.FromSeconds(5));
@@ -50,7 +51,8 @@ internal static partial class CliVersionChecker
         {
             throw new CliNotFoundException(
                 $"Claude Code CLI not found at '{cliPath}'. Install with: npm install -g @anthropic-ai/claude-code",
-                ex);
+                ex)
+                { SearchedPath = cliPath };
         }
 
         string? version = ParseVersion(output);

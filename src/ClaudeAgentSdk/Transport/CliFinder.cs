@@ -16,7 +16,8 @@ internal static class CliFinder
             {
                 return explicitPath;
             }
-            throw new CliNotFoundException($"Claude Code CLI not found at specified path: '{explicitPath}'");
+            throw new CliNotFoundException($"Claude Code CLI not found at specified path: '{explicitPath}'")
+                { SearchedPath = explicitPath };
         }
 
         // Check env var
