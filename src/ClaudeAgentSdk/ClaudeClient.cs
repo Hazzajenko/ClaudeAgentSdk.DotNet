@@ -84,6 +84,27 @@ public sealed class ClaudeClient : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Receive messages from the conversation stream, stopping after the first ResultMessage.
+    /// Use after writing a user message directly for multi-turn flow.
+    /// </summary>
+    public async IAsyncEnumerable<Message> ReceiveResponseAsync(
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_messageChannel is null)
+            throw new InvalidOperationException("Not connected");
+
+        await foreach (var message in _messageChannel.Reader.ReadAllAsync(cancellationToken))
+        {
+            _options.MessageCallback?.Invoke(message);
+            yield return message;
+
+            if (message is ResultMessage)
+                yield break;
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (_disposed) return;

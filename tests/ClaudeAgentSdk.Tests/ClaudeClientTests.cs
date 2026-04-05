@@ -1,5 +1,6 @@
 using System.Text.Json;
 using ClaudeAgentSdk;
+using ClaudeAgentSdk.Messages;
 
 namespace ClaudeAgentSdk.Tests;
 
@@ -52,5 +53,112 @@ public class ClaudeClientTests
                 // Should not reach
             }
         }).ThrowsException();
+    }
+
+    [Test]
+    public async Task ReceiveResponseAsync_StopsAfterFirstResultMessage()
+    {
+        var transport = CreateMockWithFlow("""
+            {"type":"assistant","message":{"content":[{"type":"text","text":"Hello"}],"model":"m"}}
+            {"type":"result","subtype":"success","duration_ms":100,"duration_api_ms":90,"is_error":false,"num_turns":1,"session_id":"s1","result":"Hello"}
+            """);
+
+        await using var client = new ClaudeClient(transport: transport);
+
+        // SendAsync to establish connection and get first response
+        var firstMessages = new List<Message>();
+        await foreach (var msg in client.SendAsync("first"))
+        {
+            firstMessages.Add(msg);
+        }
+
+        // Now set up a second turn response and write user message directly
+        SetupSecondTurn(transport, """
+            {"type":"assistant","message":{"content":[{"type":"text","text":"Second"}],"model":"m"}}
+            {"type":"result","subtype":"success","duration_ms":50,"duration_api_ms":40,"is_error":false,"num_turns":2,"session_id":"s1","result":"Second"}
+            """);
+
+        await client.ControlHandler!.WriteAsync(
+            ClaudeClient.BuildUserMessageJson("second", "default"), CancellationToken.None);
+
+        var messages = new List<Message>();
+        await foreach (var msg in client.ReceiveResponseAsync())
+        {
+            messages.Add(msg);
+        }
+
+        await Assert.That(messages.Count).IsEqualTo(2);
+        await Assert.That(messages[0]).IsTypeOf<AssistantMessage>();
+        await Assert.That(messages[1]).IsTypeOf<ResultMessage>();
+    }
+
+    [Test]
+    public async Task ReceiveResponseAsync_WhenNotConnected_Throws()
+    {
+        var client = new ClaudeClient();
+
+        await Assert.That(async () =>
+        {
+            await foreach (var _ in client.ReceiveResponseAsync())
+            {
+            }
+        }).ThrowsException();
+
+        await client.DisposeAsync();
+    }
+
+    [Test]
+    public async Task ReceiveResponseAsync_AfterDispose_Throws()
+    {
+        var client = new ClaudeClient();
+        await client.DisposeAsync();
+
+        await Assert.That(async () =>
+        {
+            await foreach (var _ in client.ReceiveResponseAsync())
+            {
+            }
+        }).ThrowsException();
+    }
+
+    private static Transport.MockTransport CreateMockWithFlow(string contentMessages)
+    {
+        var transport = new Transport.MockTransport("");
+
+        transport.OnWrite = json =>
+        {
+            if (json.Contains("\"type\":\"control_request\"") && json.Contains("initialize"))
+            {
+                using var doc = JsonDocument.Parse(json);
+                string requestId = doc.RootElement.GetProperty("request_id").GetString()!;
+                string response = "{\"type\":\"control_response\",\"response\":{\"subtype\":\"success\",\"request_id\":\"" + requestId + "\",\"response\":{}}}";
+                transport.EnqueueOutput(response);
+            }
+            else if (json.Contains("\"type\":\"user\""))
+            {
+                foreach (var line in contentMessages.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                {
+                    if (line.Length > 0)
+                        transport.EnqueueOutput(line);
+                }
+            }
+        };
+
+        return transport;
+    }
+
+    private static void SetupSecondTurn(Transport.MockTransport transport, string contentMessages)
+    {
+        transport.OnWrite = json =>
+        {
+            if (json.Contains("\"type\":\"user\""))
+            {
+                foreach (var line in contentMessages.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                {
+                    if (line.Length > 0)
+                        transport.EnqueueOutput(line);
+                }
+            }
+        };
     }
 }
