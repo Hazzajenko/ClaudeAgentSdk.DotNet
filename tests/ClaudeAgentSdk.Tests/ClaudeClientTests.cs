@@ -121,6 +121,39 @@ public class ClaudeClientTests
         }).ThrowsException();
     }
 
+    [Test]
+    public async Task GetServerInfo_WhenNotConnected_Throws()
+    {
+        var client = new ClaudeClient();
+
+        Assert.Throws<InvalidOperationException>(() => client.GetServerInfo());
+
+        await client.DisposeAsync();
+    }
+
+    [Test]
+    public async Task GetServerInfo_AfterDispose_Throws()
+    {
+        var client = new ClaudeClient();
+        await client.DisposeAsync();
+
+        Assert.Throws<ObjectDisposedException>(() => client.GetServerInfo());
+    }
+
+    [Test]
+    public async Task GetServerInfo_AfterConnect_ReturnsInitResult()
+    {
+        var transport = CreateMockWithFlow("""
+            {"type":"result","subtype":"success","duration_ms":0,"duration_api_ms":0,"is_error":false,"num_turns":0,"session_id":"s1"}
+            """);
+
+        await using var client = new ClaudeClient(transport: transport);
+        await foreach (var _ in client.SendAsync("test")) { }
+
+        var info = client.GetServerInfo();
+        await Assert.That(info.ValueKind).IsEqualTo(JsonValueKind.Object);
+    }
+
     private static Transport.MockTransport CreateMockWithFlow(string contentMessages)
     {
         var transport = new Transport.MockTransport("");

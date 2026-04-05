@@ -198,6 +198,18 @@ public sealed class ClaudeClient : IAsyncDisposable
         return await callback(input, ct);
     }
 
+    /// <summary>
+    /// Returns the initialization handshake result from the CLI.
+    /// Must be connected first (call SendAsync or connect explicitly).
+    /// </summary>
+    public JsonElement GetServerInfo()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_transport is null)
+            throw new InvalidOperationException("Not connected");
+        return _initializationResult;
+    }
+
     internal ControlProtocolHandler? ControlHandler => _controlHandler;
 
     private void WireSdkMcpServers()
