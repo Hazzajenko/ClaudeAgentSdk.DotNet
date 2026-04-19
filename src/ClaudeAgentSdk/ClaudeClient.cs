@@ -85,6 +85,34 @@ public sealed class ClaudeClient : IAsyncDisposable
             yield return message;
     }
 
+    /// <summary>
+    /// Escape hatch: write a raw user-message JSON line to the CLI and stream back messages.
+    /// Mirrors the Python SDK's <c>AsyncIterable[dict]</c> input mode for content shapes
+    /// not modeled by <see cref="UserContentBlock"/>. The JSON must be a complete user message
+    /// (e.g. <c>{"type":"user","message":{...},"session_id":"..."}</c>) — validated as well-formed JSON
+    /// before write but not against any schema.
+    /// </summary>
+    public async IAsyncEnumerable<Message> SendRawAsync(
+        string messageJson,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(messageJson);
+
+        // Fail fast on malformed JSON before opening the transport
+        using (JsonDocument.Parse(messageJson)) { }
+
+        if (_transport is null)
+        {
+            await ConnectAsync(cancellationToken);
+        }
+
+        await _controlHandler!.WriteAsync(messageJson, cancellationToken);
+
+        await foreach (var message in DrainUntilResultAsync(cancellationToken))
+            yield return message;
+    }
+
     private async IAsyncEnumerable<Message> DrainUntilResultAsync(
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {

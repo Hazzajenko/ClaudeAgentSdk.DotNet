@@ -157,4 +157,44 @@ public class UserContentBlockTests
         await Assert.That(content.GetArrayLength()).IsEqualTo(2);
     }
 
+    [Test]
+    public async Task SendRawAsync_WritesRawJsonToTransport()
+    {
+        var transport = new Transport.MockTransport("");
+        transport.OnWrite = json =>
+        {
+            if (json.Contains("\"type\":\"control_request\"") && json.Contains("initialize"))
+            {
+                using var doc = JsonDocument.Parse(json);
+                string requestId = doc.RootElement.GetProperty("request_id").GetString()!;
+                transport.EnqueueOutput(
+                    "{\"type\":\"control_response\",\"response\":{\"subtype\":\"success\",\"request_id\":\""
+                    + requestId + "\",\"response\":{}}}");
+            }
+            else if (json.Contains("\"role\":\"user\""))
+            {
+                transport.EnqueueOutput(
+                    "{\"type\":\"result\",\"subtype\":\"success\",\"duration_ms\":1,\"duration_api_ms\":1,\"is_error\":false,\"num_turns\":1,\"session_id\":\"s\"}");
+            }
+        };
+
+        await using var client = new ClaudeClient(transport: transport);
+        const string raw =
+            """{"type":"user","message":{"role":"user","content":"raw escape"},"session_id":"default"}""";
+
+        await foreach (var _ in client.SendRawAsync(raw)) { }
+
+        await Assert.That(transport.WrittenMessages.Contains(raw)).IsTrue();
+    }
+
+    [Test]
+    public async Task SendRawAsync_WithInvalidJson_Throws()
+    {
+        await using var client = new ClaudeClient();
+
+        await Assert.That(async () =>
+        {
+            await foreach (var _ in client.SendRawAsync("{not valid json")) { }
+        }).Throws<JsonException>();
+    }
 }

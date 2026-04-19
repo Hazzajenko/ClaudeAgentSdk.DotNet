@@ -10,6 +10,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Added
 
 - Multimodal user input: `UserContentBlock` hierarchy (`UserTextBlock`, `UserImageBlock`, `UserImageUrlBlock`, `UserToolResultBlock`) with new `ClaudeClient.SendAsync(IReadOnlyList<UserContentBlock>, sessionId, ct)` and `Claude.QueryAsync(IReadOnlyList<UserContentBlock>, ...)` overloads — sends content as the CLI's `content` array (matching what Claude Desktop sends for image paste), enabling image input + tool result responses. AOT-safe — built with `Utf8JsonWriter` directly, no reflection.
+- `ClaudeClient.SendRawAsync(string messageJson, ct)` — escape hatch matching Python SDK's `AsyncIterable[dict]` mode. Writes a pre-built user-message JSON line to the CLI for content shapes not modeled by `UserContentBlock` (e.g. documents, custom block types). Validates well-formed JSON before write.
 - `CLAUDE_AGENT_SDK_VERSION` environment variable set on the CLI subprocess for telemetry/debugging (reads assembly version from MinVer)
 - `CliNotFoundException.SearchedPath`, `CliConnectionException.ExitCode`/`Stderr`, `MessageParseException.Line` — structured context fields on exception types for programmatic error handling. `MessageParseException` now wraps JSON deserialization errors (previously raw `JsonException`) with the failed line truncated to 100 chars.
 - Unicode sanitization on session `Rename`/`Tag` — strips dangerous Unicode (format chars, directional marks, private-use area, zero-width joiners) before writing, matching Python SDK behavior
