@@ -57,7 +57,37 @@ public sealed class ClaudeClient : IAsyncDisposable
         string json = BuildUserMessageJson(prompt, "default");
         await _controlHandler!.WriteAsync(json, cancellationToken);
 
-        // Read from the channel until ResultMessage
+        await foreach (var message in DrainUntilResultAsync(cancellationToken))
+            yield return message;
+    }
+
+    /// <summary>
+    /// Send a multimodal user message (text + images, tool results) and stream back messages.
+    /// Use for image input, tool result responses, or any structured user content.
+    /// </summary>
+    public async IAsyncEnumerable<Message> SendAsync(
+        IReadOnlyList<UserContentBlock> content,
+        string sessionId = "default",
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(content);
+
+        if (_transport is null)
+        {
+            await ConnectAsync(cancellationToken);
+        }
+
+        string json = BuildUserMessageJson(content, sessionId);
+        await _controlHandler!.WriteAsync(json, cancellationToken);
+
+        await foreach (var message in DrainUntilResultAsync(cancellationToken))
+            yield return message;
+    }
+
+    private async IAsyncEnumerable<Message> DrainUntilResultAsync(
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
         await foreach (var message in _messageChannel!.Reader.ReadAllAsync(cancellationToken))
         {
             _options.MessageCallback?.Invoke(message);
@@ -403,6 +433,78 @@ public sealed class ClaudeClient : IAsyncDisposable
             writer.WriteString("session_id", sessionId);
             writer.WriteEndObject();
         }
-        return System.Text.Encoding.UTF8.GetString(stream.ToArray());
+        return Encoding.UTF8.GetString(stream.ToArray());
+    }
+
+    internal static string BuildUserMessageJson(IReadOnlyList<UserContentBlock> blocks, string sessionId)
+    {
+        ArgumentNullException.ThrowIfNull(blocks);
+        if (blocks.Count == 0)
+            throw new ArgumentException("Content block list must not be empty.", nameof(blocks));
+
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("type", "user");
+            writer.WriteStartObject("message");
+            writer.WriteString("role", "user");
+            writer.WriteStartArray("content");
+            foreach (var block in blocks)
+                WriteUserContentBlock(writer, block);
+            writer.WriteEndArray();
+            writer.WriteEndObject();
+            writer.WriteString("session_id", sessionId);
+            writer.WriteEndObject();
+        }
+        return Encoding.UTF8.GetString(stream.ToArray());
+    }
+
+    private static void WriteUserContentBlock(Utf8JsonWriter w, UserContentBlock block)
+    {
+        switch (block)
+        {
+            case UserTextBlock text:
+                w.WriteStartObject();
+                w.WriteString("type", "text");
+                w.WriteString("text", text.Text);
+                w.WriteEndObject();
+                break;
+
+            case UserImageBlock image:
+                w.WriteStartObject();
+                w.WriteString("type", "image");
+                w.WriteStartObject("source");
+                w.WriteString("type", "base64");
+                w.WriteString("media_type", image.MediaType);
+                w.WriteString("data", image.Base64Data);
+                w.WriteEndObject();
+                w.WriteEndObject();
+                break;
+
+            case UserImageUrlBlock imageUrl:
+                w.WriteStartObject();
+                w.WriteString("type", "image");
+                w.WriteStartObject("source");
+                w.WriteString("type", "url");
+                w.WriteString("url", imageUrl.Url);
+                w.WriteEndObject();
+                w.WriteEndObject();
+                break;
+
+            case UserToolResultBlock toolResult:
+                w.WriteStartObject();
+                w.WriteString("type", "tool_result");
+                w.WriteString("tool_use_id", toolResult.ToolUseId);
+                if (toolResult.Content is not null)
+                    w.WriteString("content", toolResult.Content);
+                if (toolResult.IsError is { } isError)
+                    w.WriteBoolean("is_error", isError);
+                w.WriteEndObject();
+                break;
+
+            default:
+                throw new ArgumentException($"Unsupported UserContentBlock type: {block.GetType().Name}", nameof(block));
+        }
     }
 }

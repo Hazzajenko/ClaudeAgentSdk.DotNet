@@ -32,6 +32,25 @@ public static class Claude
     }
 
     /// <summary>
+    /// Send a one-shot multimodal query (text + images, tool results) and stream back messages.
+    /// </summary>
+    public static async IAsyncEnumerable<Message> QueryAsync(
+        IReadOnlyList<UserContentBlock> content,
+        ClaudeClientOptions? options = null,
+        ITransport? transport = null,
+        string sessionId = "default",
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        options ??= new ClaudeClientOptions();
+
+        await using var client = new ClaudeClient(options, transport);
+        await foreach (var message in client.SendAsync(content, sessionId, cancellationToken))
+        {
+            yield return message;
+        }
+    }
+
+    /// <summary>
     /// Core query logic extracted for testability. Sends initialize, writes user message,
     /// then yields content messages until ResultMessage.
     /// </summary>
