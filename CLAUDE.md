@@ -90,3 +90,7 @@ Enforced by `.editorconfig` with `EnforceCodeStyleInBuild=true`:
 - `tests/ClaudeAgentSdk.Tests/`: the TUnit test project
 - `examples/`: 12 example projects that show SDK features
 - `scripts/release.sh`: version bump and release
+
+## Pull requests
+
+Work goes through GitHub issues and PRs. `docs/agents/pull-requests.md` gives the branch name, the PR body and the proof a PR needs.
