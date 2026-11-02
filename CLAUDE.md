@@ -94,3 +94,17 @@ Enforced by `.editorconfig` with `EnforceCodeStyleInBuild=true`:
 ## Pull requests
 
 Work goes through GitHub issues and PRs. `docs/agents/pull-requests.md` gives the branch name, the PR body and the proof a PR needs.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues on Hazzajenko/ClaudeAgentSdk.DotNet. Use the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five default triage roles use their default label names. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
