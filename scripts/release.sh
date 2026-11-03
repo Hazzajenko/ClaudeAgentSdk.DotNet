@@ -34,7 +34,8 @@ rollback_release_pr() {
   [[ -n "$BODY_FILE" ]] && rm -f "$BODY_FILE"
   if [[ $status -ne 0 && -n "$ROLLBACK_BRANCH" ]]; then
     echo "Rolling back $ROLLBACK_BRANCH" >&2
-    git checkout --quiet -- CHANGELOG.md 2>/dev/null || true
+    # Restore from HEAD, not the index, so a staged stamp is also undone.
+    git checkout --quiet HEAD -- CHANGELOG.md 2>/dev/null || true
     git switch --quiet main || true
     git branch --quiet -D "$ROLLBACK_BRANCH" 2>/dev/null || true
     if [[ $ROLLBACK_PUSHED -eq 1 ]]; then
@@ -133,8 +134,10 @@ open_release_pr() {
 
   git add CHANGELOG.md
   git commit --quiet -m "chore(release): $full_version"
-  ROLLBACK_PUSHED=1
   git push --quiet -u origin "$branch"
+  # Set only after the push, so a rejected push never deletes a branch
+  # that this run did not create.
+  ROLLBACK_PUSHED=1
 
   BODY_FILE=$(mktemp)
   {
