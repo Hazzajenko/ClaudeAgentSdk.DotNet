@@ -23,6 +23,27 @@ usage() {
   exit 1
 }
 
+# State for rollback_release_pr. A failed run must leave no local branch,
+# remote branch or temp file behind, so the next run can start clean.
+ROLLBACK_BRANCH=""
+ROLLBACK_PUSHED=0
+BODY_FILE=""
+
+rollback_release_pr() {
+  local status=$?
+  [[ -n "$BODY_FILE" ]] && rm -f "$BODY_FILE"
+  if [[ $status -ne 0 && -n "$ROLLBACK_BRANCH" ]]; then
+    echo "Rolling back $ROLLBACK_BRANCH" >&2
+    git checkout --quiet -- CHANGELOG.md 2>/dev/null || true
+    git switch --quiet main || true
+    git branch --quiet -D "$ROLLBACK_BRANCH" 2>/dev/null || true
+    if [[ $ROLLBACK_PUSHED -eq 1 ]]; then
+      git push --quiet origin --delete "$ROLLBACK_BRANCH" || echo "Delete origin/$ROLLBACK_BRANCH by hand" >&2
+    fi
+  fi
+  exit $status
+}
+
 fail() {
   echo "Error: $*" >&2
   exit 1
@@ -89,6 +110,9 @@ open_release_pr() {
   echo "Release: $last_tag → $tag"
 
   require_tag_absent "$tag"
+  if git show-ref --verify --quiet "refs/heads/$branch"; then
+    fail "branch $branch already exists locally"
+  fi
   if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
     fail "branch $branch already exists on origin"
   fi
@@ -99,7 +123,9 @@ open_release_pr() {
     fail "[Unreleased] section in CHANGELOG.md is empty"
   fi
 
+  trap rollback_release_pr EXIT
   git switch --quiet -c "$branch"
+  ROLLBACK_BRANCH="$branch"
 
   local today
   today=$(date +%Y-%m-%d)
@@ -107,10 +133,10 @@ open_release_pr() {
 
   git add CHANGELOG.md
   git commit --quiet -m "chore(release): $full_version"
+  ROLLBACK_PUSHED=1
   git push --quiet -u origin "$branch"
 
-  local body_file
-  body_file=$(mktemp)
+  BODY_FILE=$(mktemp)
   {
     echo "Stamps \`CHANGELOG.md\` for $tag."
     echo ""
@@ -119,11 +145,12 @@ open_release_pr() {
     echo "## Changelog"
     echo ""
     echo "$unreleased"
-  } > "$body_file"
+  } > "$BODY_FILE"
 
-  gh pr create --base main --head "$branch" --title "chore(release): $full_version" --body-file "$body_file"
-  rm -f "$body_file"
+  gh pr create --base main --head "$branch" --title "chore(release): $full_version" --body-file "$BODY_FILE"
 
+  # The PR exists, so a later failure must not roll back the branch.
+  ROLLBACK_BRANCH=""
   git switch --quiet main
 
   echo ""
@@ -156,7 +183,10 @@ tag_release() {
   fi
 
   git tag "$tag" "$merge_commit"
-  git push --quiet origin "$tag"
+  if ! git push --quiet origin "$tag"; then
+    git tag -d "$tag" >/dev/null
+    fail "push of $tag failed. Removed the local tag, so you can run this again."
+  fi
 
   echo "Done. $tag on $merge_commit. Watch: gh run watch"
 }
