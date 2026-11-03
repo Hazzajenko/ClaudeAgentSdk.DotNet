@@ -7,6 +7,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-04
+
 ### Added
 
 - Multimodal user input: `UserContentBlock` hierarchy (`UserTextBlock`, `UserImageBlock`, `UserImageUrlBlock`, `UserToolResultBlock`) with new `ClaudeClient.SendAsync(IReadOnlyList<UserContentBlock>, sessionId, ct)` and `Claude.QueryAsync(IReadOnlyList<UserContentBlock>, ...)` overloads — sends content as the CLI's `content` array (matching what Claude Desktop sends for image paste), enabling image input + tool result responses. AOT-safe — built with `Utf8JsonWriter` directly, no reflection.
