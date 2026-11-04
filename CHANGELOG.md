@@ -7,6 +7,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Security
+
+- The Windows fallback search now probes only `~/.local/bin/claude.exe`. It no longer probes extensionless names or `/usr/local/bin/claude`, which resolves to a folder on the current drive that any local user can create. The Windows not-found message no longer recommends the npm package.
+
 ## [0.2.0] - 2026-11-04
 
 ### Added
