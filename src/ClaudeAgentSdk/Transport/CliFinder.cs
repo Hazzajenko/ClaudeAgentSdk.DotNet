@@ -16,11 +16,21 @@ internal static class CliFinder
             OperatingSystem.IsWindows(),
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
 
+    /// <summary>
+    /// The batch check runs on the path that was found, whatever its source. A missing
+    /// file cannot run, so a missing .cmd path gets the usual not-found result.
+    /// </summary>
     internal static string Find(string? explicitPath, string? cliPathVariable, string? pathVariable, bool isWindows, string home)
+    {
+        string path = Locate(explicitPath, cliPathVariable, pathVariable, isWindows, home);
+        RejectWindowsBatchFile(path, isWindows);
+        return path;
+    }
+
+    private static string Locate(string? explicitPath, string? cliPathVariable, string? pathVariable, bool isWindows, string home)
     {
         if (explicitPath is not null)
         {
-            RejectWindowsBatchFile(explicitPath, isWindows);
             if (File.Exists(explicitPath))
             {
                 return explicitPath;
@@ -30,13 +40,9 @@ internal static class CliFinder
         }
 
         // Check env var
-        if (cliPathVariable is not null)
+        if (cliPathVariable is not null && File.Exists(cliPathVariable))
         {
-            RejectWindowsBatchFile(cliPathVariable, isWindows);
-            if (File.Exists(cliPathVariable))
-            {
-                return cliPathVariable;
-            }
+            return cliPathVariable;
         }
 
         // Search PATH
@@ -110,7 +116,7 @@ internal static class CliFinder
     /// such as <c>claude.cmd\x\..</c>. An NTFS stream name such as <c>claude.cmd:s</c> also
     /// opens the base file, so each component is split on ':' too.
     /// </summary>
-    private static bool IsWindowsBatchFile(string path)
+    internal static bool IsWindowsBatchFile(string path)
     {
         foreach (string component in path.Split('/', '\\'))
         {
