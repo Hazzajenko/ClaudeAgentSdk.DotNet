@@ -102,13 +102,62 @@ public class CliArgsBuilderTests
     }
 
     [Test]
-    public async Task Resume_AddsResumeArg()
+    public async Task Resume_AddsResumeArgAsOneToken()
     {
         var args = CliArgsBuilder.Build(new ClaudeClientOptions { Resume = "sess-123" });
 
-        int idx = args.IndexOf("--resume");
-        await Assert.That(idx).IsGreaterThanOrEqualTo(0);
-        await Assert.That(args[idx + 1]).IsEqualTo("sess-123");
+        await Assert.That(args).Contains("--resume=sess-123");
+        await Assert.That(args).DoesNotContain("--resume");
+    }
+
+    [Test]
+    public async Task Resume_DashPrefixedValue_StaysOneToken()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions
+        {
+            Resume = "--permission-mode=bypassPermissions"
+        });
+
+        await Assert.That(args).Contains("--resume=--permission-mode=bypassPermissions");
+        await Assert.That(args).DoesNotContain("--permission-mode=bypassPermissions");
+        await Assert.That(args).DoesNotContain("--permission-mode");
+    }
+
+    [Test]
+    [Arguments("sess&calc")]
+    [Arguments("sess|calc")]
+    [Arguments("sess<in")]
+    [Arguments("sess>out")]
+    [Arguments("sess^x")]
+    [Arguments("sess%PATH%")]
+    [Arguments("sess!x!")]
+    [Arguments("sess\"x")]
+    [Arguments("sess\rx")]
+    [Arguments("sess\nx")]
+    public async Task Resume_CmdMetacharacterOnWindows_Throws(string resume)
+    {
+        var options = new ClaudeClientOptions { Resume = resume };
+
+        await Assert.That(() => CliArgsBuilder.Build(options, isWindows: true))
+            .Throws<ArgumentException>();
+    }
+
+    [Test]
+    public async Task Resume_CmdMetacharacterOffWindows_IsAllowed()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions { Resume = "sess&x" }, isWindows: false);
+
+        await Assert.That(args).Contains("--resume=sess&x");
+    }
+
+    [Test]
+    public async Task Resume_PlainSessionIdOnWindows_IsAllowed()
+    {
+        var args = CliArgsBuilder.Build(
+            new ClaudeClientOptions { Resume = "0b6f6f4e-1c2d-4e5f-8a9b-0c1d2e3f4a5b" },
+            isWindows: true);
+
+        await Assert.That(args).Contains("--resume=0b6f6f4e-1c2d-4e5f-8a9b-0c1d2e3f4a5b");
     }
 
     [Test]
