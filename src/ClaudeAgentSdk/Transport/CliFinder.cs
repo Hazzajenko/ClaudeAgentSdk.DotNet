@@ -8,7 +8,26 @@ namespace ClaudeAgentSdk.Transport;
 /// </summary>
 internal static class CliFinder
 {
-    public static string Find(string? explicitPath = null)
+    public static string Find(string? explicitPath = null) =>
+        Find(
+            explicitPath,
+            Environment.GetEnvironmentVariable("CLAUDE_CLI_PATH"),
+            Environment.GetEnvironmentVariable("PATH"),
+            OperatingSystem.IsWindows(),
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+
+    /// <summary>
+    /// The batch check runs on the path that was found, whatever its source. A missing
+    /// file cannot run, so a missing .cmd path gets the usual not-found result.
+    /// </summary>
+    internal static string Find(string? explicitPath, string? cliPathVariable, string? pathVariable, bool isWindows, string home)
+    {
+        string path = Locate(explicitPath, cliPathVariable, pathVariable, isWindows, home);
+        RejectWindowsBatchFile(path, isWindows);
+        return path;
+    }
+
+    private static string Locate(string? explicitPath, string? cliPathVariable, string? pathVariable, bool isWindows, string home)
     {
         if (explicitPath is not null)
         {
@@ -21,37 +40,34 @@ internal static class CliFinder
         }
 
         // Check env var
-        string? envPath = Environment.GetEnvironmentVariable("CLAUDE_CLI_PATH");
-        if (envPath is not null && File.Exists(envPath))
+        if (cliPathVariable is not null && File.Exists(cliPathVariable))
         {
-            return envPath;
+            return cliPathVariable;
         }
 
         // Search PATH
-        string? pathResult = FindOnPath();
+        string? pathResult = FindOnPath(pathVariable, isWindows);
         if (pathResult is not null)
         {
             return pathResult;
         }
 
-        // Check well-known locations
-        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        string[] wellKnownPaths =
-        [
-            Path.Combine(home, ".npm-global", "bin", "claude"),
-            "/usr/local/bin/claude",
-            Path.Combine(home, ".local", "bin", "claude"),
-            Path.Combine(home, "node_modules", ".bin", "claude"),
-            Path.Combine(home, ".yarn", "bin", "claude"),
-            Path.Combine(home, ".claude", "local", "claude"),
-        ];
-
-        foreach (string path in wellKnownPaths)
+        foreach (string path in WellKnownPaths(home, isWindows))
         {
             if (File.Exists(path))
             {
                 return path;
             }
+        }
+
+        if (isWindows)
+        {
+            throw new CliNotFoundException(
+                "Claude Code CLI not found. Install the native claude.exe in PowerShell with:\n" +
+                "  irm https://claude.ai/install.ps1 | iex\n" +
+                "\nOr set CLAUDE_CLI_PATH environment variable to a claude.exe.\n" +
+                "Or provide the path via ClaudeClientOptions { CliPath = @\"C:\\path\\to\\claude.exe\" }\n" +
+                "\nThe npm package installs a claude.cmd file, which this SDK refuses to run on Windows.");
         }
 
         throw new CliNotFoundException(
@@ -61,18 +77,74 @@ internal static class CliFinder
             "Or provide the path via ClaudeClientOptions { CliPath = \"/path/to/claude\" }");
     }
 
-    private static string? FindOnPath()
-    {
-        string cliName = OperatingSystem.IsWindows() ? "claude.exe" : "claude";
-        string? pathEnv = Environment.GetEnvironmentVariable("PATH");
+    /// <summary>
+    /// Fallback locations to probe when the CLI is not on PATH. On Windows only the native
+    /// installer's claude.exe is probed. An extensionless file there is not a Windows
+    /// executable, and the driveless "/usr/local/bin/claude" resolves to a folder on the
+    /// current drive that any local user can create.
+    /// </summary>
+    internal static string[] WellKnownPaths(string home, bool isWindows) => isWindows
+        ? [Path.Combine(home, ".local", "bin", "claude.exe")]
+        :
+        [
+            Path.Combine(home, ".npm-global", "bin", "claude"),
+            "/usr/local/bin/claude",
+            Path.Combine(home, ".local", "bin", "claude"),
+            Path.Combine(home, "node_modules", ".bin", "claude"),
+            Path.Combine(home, ".yarn", "bin", "claude"),
+            Path.Combine(home, ".claude", "local", "claude"),
+        ];
 
-        if (pathEnv is null)
+    /// <summary>
+    /// Refuses a .bat or .cmd file on Windows. CreateProcess runs a batch file through
+    /// cmd.exe, and ArgumentList quoting does not protect arguments from cmd.exe parsing.
+    /// </summary>
+    private static void RejectWindowsBatchFile(string path, bool isWindows)
+    {
+        if (isWindows && IsWindowsBatchFile(path))
+        {
+            throw new CliConnectionException(
+                $"Refusing to run batch file '{path}'. Windows runs .bat and .cmd files through cmd.exe, " +
+                "which can run commands injected through CLI arguments. Use a native claude.exe instead. " +
+                "Install it in PowerShell with: irm https://claude.ai/install.ps1 | iex");
+        }
+    }
+
+    /// <summary>
+    /// Checks every path component. Win32 trims trailing dots and
+    /// spaces and collapses "." and ".." segments, so a batch file can hide behind a path
+    /// such as <c>claude.cmd\x\..</c>. An NTFS stream name such as <c>claude.cmd:s</c> also
+    /// opens the base file, so each component is split on ':' too.
+    /// </summary>
+    internal static bool IsWindowsBatchFile(string path)
+    {
+        foreach (string component in path.Split('/', '\\'))
+        {
+            foreach (string segment in component.Split(':'))
+            {
+                string trimmed = segment.TrimEnd('.', ' ');
+                if (trimmed.EndsWith(".bat", StringComparison.OrdinalIgnoreCase) ||
+                    trimmed.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static string? FindOnPath(string? pathVariable, bool isWindows)
+    {
+        string cliName = isWindows ? "claude.exe" : "claude";
+
+        if (pathVariable is null)
         {
             return null;
         }
 
-        char separator = OperatingSystem.IsWindows() ? ';' : ':';
-        foreach (string dir in pathEnv.Split(separator))
+        char separator = isWindows ? ';' : ':';
+        foreach (string dir in pathVariable.Split(separator))
         {
             string fullPath = Path.Combine(dir, cliName);
             if (File.Exists(fullPath))
