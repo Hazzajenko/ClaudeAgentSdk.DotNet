@@ -16,7 +16,7 @@ internal static class CliFinder
             OperatingSystem.IsWindows(),
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
 
-    internal static string Find(string? explicitPath, string? envPath, string? pathEnv, bool isWindows, string home)
+    internal static string Find(string? explicitPath, string? cliPathVariable, string? pathVariable, bool isWindows, string home)
     {
         if (explicitPath is not null)
         {
@@ -30,17 +30,17 @@ internal static class CliFinder
         }
 
         // Check env var
-        if (envPath is not null)
+        if (cliPathVariable is not null)
         {
-            RejectWindowsBatchFile(envPath, isWindows);
-            if (File.Exists(envPath))
+            RejectWindowsBatchFile(cliPathVariable, isWindows);
+            if (File.Exists(cliPathVariable))
             {
-                return envPath;
+                return cliPathVariable;
             }
         }
 
         // Search PATH
-        string? pathResult = FindOnPath(pathEnv, isWindows);
+        string? pathResult = FindOnPath(pathVariable, isWindows);
         if (pathResult is not null)
         {
             return pathResult;
@@ -128,17 +128,17 @@ internal static class CliFinder
         return false;
     }
 
-    private static string? FindOnPath(string? pathEnv, bool isWindows)
+    private static string? FindOnPath(string? pathVariable, bool isWindows)
     {
         string cliName = isWindows ? "claude.exe" : "claude";
 
-        if (pathEnv is null)
+        if (pathVariable is null)
         {
             return null;
         }
 
         char separator = isWindows ? ';' : ':';
-        foreach (string dir in pathEnv.Split(separator))
+        foreach (string dir in pathVariable.Split(separator))
         {
             string fullPath = Path.Combine(dir, cliName);
             if (File.Exists(fullPath))

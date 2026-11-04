@@ -18,7 +18,7 @@ public class CliFinderTests
     public async Task Find_BatchFileFromCliPath_OnWindows_Throws(string path)
     {
         var ex = await Assert.That(
-            () => CliFinder.Find(path, envPath: null, pathEnv: null, isWindows: true, home: Home))
+            () => CliFinder.Find(path, cliPathVariable: null, pathVariable: null, isWindows: true, home: Home))
             .Throws<CliConnectionException>();
 
         await Assert.That(ex!.Message).Contains("batch");
@@ -32,7 +32,7 @@ public class CliFinderTests
     public async Task Find_BatchFileFromEnvVar_OnWindows_Throws(string path)
     {
         await Assert.That(
-            () => CliFinder.Find(explicitPath: null, envPath: path, pathEnv: null, isWindows: true, home: Home))
+            () => CliFinder.Find(explicitPath: null, cliPathVariable: path, pathVariable: null, isWindows: true, home: Home))
             .Throws<CliConnectionException>();
     }
 
@@ -57,7 +57,7 @@ public class CliFinderTests
     public async Task Find_NotFound_OnWindows_DoesNotRecommendNpm()
     {
         var ex = await Assert.That(
-            () => CliFinder.Find(explicitPath: null, envPath: null, pathEnv: null, isWindows: true, home: NoSuchHome()))
+            () => CliFinder.Find(explicitPath: null, cliPathVariable: null, pathVariable: null, isWindows: true, home: NoSuchHome()))
             .Throws<CliNotFoundException>();
 
         await Assert.That(ex!.Message).DoesNotContain("npm install");
@@ -68,7 +68,7 @@ public class CliFinderTests
     public async Task Find_CmdPath_OffWindows_IsNotRefused()
     {
         await Assert.That(
-            () => CliFinder.Find(@"/nowhere/claude.cmd", envPath: null, pathEnv: null, isWindows: false, home: Home))
+            () => CliFinder.Find(@"/nowhere/claude.cmd", cliPathVariable: null, pathVariable: null, isWindows: false, home: Home))
             .Throws<CliNotFoundException>();
     }
 }
