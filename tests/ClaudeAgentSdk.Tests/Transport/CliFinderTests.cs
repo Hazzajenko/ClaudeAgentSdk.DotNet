@@ -26,6 +26,7 @@ public class CliFinderTests
 
     [Test]
     [Arguments(@"C:\npm\claude.cmd")]
+    [Arguments(@"C:\npm\claude.cmd.")]
     [Arguments(@"C:\npm\claude.CMD ")]
     [Arguments(@"C:\npm\claude.cmd\x\..")]
     [Arguments(@"C:\npm\claude.cmd:stream")]
