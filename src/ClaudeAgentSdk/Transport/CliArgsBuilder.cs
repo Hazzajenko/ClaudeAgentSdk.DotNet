@@ -63,15 +63,7 @@ internal static class CliArgsBuilder
             });
         }
 
-        if (options.ExtraArgs is { Count: > 0 })
-        {
-            foreach (var (flag, value) in options.ExtraArgs)
-            {
-                args.Add($"--{flag}");
-                if (value is not null)
-                    args.Add(value);
-            }
-        }
+        AddExtraArgs(args, options);
 
         return args;
     }
@@ -270,20 +262,41 @@ internal static class CliArgsBuilder
 
         AddJsonSchemaArgs(args, options);
 
-        if (options.ExtraArgs is { Count: > 0 })
-        {
-            foreach (var (flag, value) in options.ExtraArgs)
-            {
-                args.Add($"--{flag}");
-                if (value is not null)
-                    args.Add(value);
-            }
-        }
+        AddExtraArgs(args, options);
 
         args.Add("--setting-sources");
         args.Add(options.SettingSources is { Count: > 0 }
             ? string.Join(",", options.SettingSources)
             : "");
+    }
+
+    /// <summary>
+    /// Adds each extra arg as a flag. A value that starts with "-" goes in one
+    /// "--flag=value" token, so the CLI cannot read the value as its own flag.
+    /// </summary>
+    private static void AddExtraArgs(List<string> args, ClaudeClientOptions options)
+    {
+        if (options.ExtraArgs is not { Count: > 0 })
+        {
+            return;
+        }
+
+        foreach (var (flag, value) in options.ExtraArgs)
+        {
+            if (value is null)
+            {
+                args.Add($"--{flag}");
+            }
+            else if (value.StartsWith('-'))
+            {
+                args.Add($"--{flag}={value}");
+            }
+            else
+            {
+                args.Add($"--{flag}");
+                args.Add(value);
+            }
+        }
     }
 
     private static void AddJsonSchemaArgs(List<string> args, ClaudeClientOptions options)

@@ -11,6 +11,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - On Windows, a `.bat` or `.cmd` path from `CliPath` or `CLAUDE_CLI_PATH` now throws `CliConnectionException` before any process starts. Windows runs batch files through cmd.exe, which can run commands injected through CLI arguments. Use the native `claude.exe` instead.
 - The Windows fallback search now probes only `~/.local/bin/claude.exe`. It no longer probes extensionless names or `/usr/local/bin/claude`, which resolves to a folder on the current drive that any local user can create. The Windows not-found message no longer recommends the npm package.
+- An `ExtraArgs` value that starts with `-` now goes to the CLI as one `--<flag>=<value>` token, so the CLI cannot read the value as its own flag.
 
 ## [0.2.0] - 2026-11-04
 

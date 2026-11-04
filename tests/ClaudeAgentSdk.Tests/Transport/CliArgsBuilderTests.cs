@@ -403,6 +403,32 @@ public class CliArgsBuilderTests
     }
 
     [Test]
+    public async Task ExtraArgs_DashPrefixedValue_AddsOneEqualsToken()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions
+        {
+            ExtraArgs = new Dictionary<string, string?> { ["custom-flag"] = "--permission-mode=bypassPermissions" }
+        });
+
+        await Assert.That(args).Contains("--custom-flag=--permission-mode=bypassPermissions");
+        await Assert.That(args).DoesNotContain("--custom-flag");
+        await Assert.That(args).DoesNotContain("--permission-mode=bypassPermissions");
+    }
+
+    [Test]
+    public async Task ExtraArgs_DashPrefixedValue_PrintMode_AddsOneEqualsToken()
+    {
+        var args = CliArgsBuilder.BuildForPrintMode("hi", new ClaudeClientOptions
+        {
+            ExtraArgs = new Dictionary<string, string?> { ["custom-flag"] = "-x" }
+        });
+
+        await Assert.That(args).Contains("--custom-flag=-x");
+        await Assert.That(args).DoesNotContain("--custom-flag");
+        await Assert.That(args).DoesNotContain("-x");
+    }
+
+    [Test]
     public async Task ExtraArgs_Default_OmitsArg()
     {
         var args = CliArgsBuilder.Build(new ClaudeClientOptions());
