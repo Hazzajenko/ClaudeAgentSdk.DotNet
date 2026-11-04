@@ -20,6 +20,7 @@ internal static class CliFinder
     {
         if (explicitPath is not null)
         {
+            RejectWindowsBatchFile(explicitPath, isWindows);
             if (File.Exists(explicitPath))
             {
                 return explicitPath;
@@ -29,9 +30,13 @@ internal static class CliFinder
         }
 
         // Check env var
-        if (envPath is not null && File.Exists(envPath))
+        if (envPath is not null)
         {
-            return envPath;
+            RejectWindowsBatchFile(envPath, isWindows);
+            if (File.Exists(envPath))
+            {
+                return envPath;
+            }
         }
 
         // Search PATH
@@ -83,6 +88,45 @@ internal static class CliFinder
             Path.Combine(home, ".yarn", "bin", "claude"),
             Path.Combine(home, ".claude", "local", "claude"),
         ];
+
+    /// <summary>
+    /// Refuses a .bat or .cmd file on Windows. CreateProcess runs a batch file through
+    /// cmd.exe, and ArgumentList quoting does not protect arguments from cmd.exe parsing.
+    /// </summary>
+    private static void RejectWindowsBatchFile(string path, bool isWindows)
+    {
+        if (isWindows && IsWindowsBatchFile(path))
+        {
+            throw new CliConnectionException(
+                $"Refusing to run batch file '{path}'. Windows runs .bat and .cmd files through cmd.exe, " +
+                "which can run commands injected through CLI arguments. Use a native claude.exe instead. " +
+                "Install it with (PowerShell): irm https://claude.ai/install.ps1 | iex");
+        }
+    }
+
+    /// <summary>
+    /// Checks every path component, not only the last one. Win32 trims trailing dots and
+    /// spaces and collapses "." and ".." segments, so a batch file can hide behind a path
+    /// such as <c>claude.cmd\x\..</c>. An NTFS stream name such as <c>claude.cmd:s</c> also
+    /// opens the base file, so each component is split on ':' too.
+    /// </summary>
+    private static bool IsWindowsBatchFile(string path)
+    {
+        foreach (string component in path.Split('/', '\\'))
+        {
+            foreach (string segment in component.Split(':'))
+            {
+                string trimmed = segment.TrimEnd('.', ' ');
+                if (trimmed.EndsWith(".bat", StringComparison.OrdinalIgnoreCase) ||
+                    trimmed.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
 
     private static string? FindOnPath(string? pathEnv, bool isWindows)
     {
