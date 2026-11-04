@@ -11,6 +11,11 @@ namespace ClaudeAgentSdk.Transport;
 internal static class CliArgsBuilder
 {
     /// <summary>
+    /// cmd.exe reads these characters as syntax when the CLI runs through a .cmd shim.
+    /// </summary>
+    private static readonly char[] _windowsCmdMetacharacters = ['&', '|', '<', '>', '^', '%', '!', '"', '\r', '\n'];
+
+    /// <summary>
     /// Build args for one-shot print mode (-p). Prompt goes on command line, no stdin needed.
     /// Only adds flags that were explicitly set — avoids --system-prompt "" and --setting-sources ""
     /// which can interfere with the CLI's internal tool handling.
@@ -63,15 +68,7 @@ internal static class CliArgsBuilder
             });
         }
 
-        if (options.ExtraArgs is { Count: > 0 })
-        {
-            foreach (var (flag, value) in options.ExtraArgs)
-            {
-                args.Add($"--{flag}");
-                if (value is not null)
-                    args.Add(value);
-            }
-        }
+        AddExtraArgs(args, options);
 
         return args;
     }
@@ -79,7 +76,14 @@ internal static class CliArgsBuilder
     /// <summary>
     /// Build args for streaming mode (--input-format stream-json). Used by ClaudeClient.
     /// </summary>
-    public static List<string> Build(ClaudeClientOptions options)
+    public static List<string> Build(ClaudeClientOptions options) =>
+        Build(options, OperatingSystem.IsWindows());
+
+    /// <summary>
+    /// Build args for streaming mode. <paramref name="isWindows"/> turns on the
+    /// cmd.exe metacharacter check for session id flags. Tests pass it to cover both platforms.
+    /// </summary>
+    internal static List<string> Build(ClaudeClientOptions options, bool isWindows)
     {
         var args = new List<string>
         {
@@ -88,11 +92,28 @@ internal static class CliArgsBuilder
             "--input-format", "stream-json"
         };
 
-        AddCommonArgs(args, options);
+        AddCommonArgs(args, options, isWindows);
         return args;
     }
 
-    private static void AddCommonArgs(List<string> args, ClaudeClientOptions options)
+    /// <summary>
+    /// Adds a flag that takes a session id as one "--flag=value" token. The CLI declares
+    /// these flags with an optional value, so a separate value that starts with "-" would
+    /// become its own flag. On Windows, a value with a cmd.exe metacharacter throws.
+    /// </summary>
+    private static void AddSessionIdArg(List<string> args, string flag, string value, string paramName, bool isWindows)
+    {
+        if (isWindows && value.IndexOfAny(_windowsCmdMetacharacters) >= 0)
+        {
+            throw new ArgumentException(
+                $"{paramName} contains a character that cmd.exe reads as syntax: & | < > ^ % ! \" CR or LF.",
+                paramName);
+        }
+
+        args.Add($"--{flag}={value}");
+    }
+
+    private static void AddCommonArgs(List<string> args, ClaudeClientOptions options, bool isWindows)
     {
         if (options.SystemPrompt is not null)
         {
@@ -202,8 +223,7 @@ internal static class CliArgsBuilder
 
         if (options.Resume is not null)
         {
-            args.Add("--resume");
-            args.Add(options.Resume);
+            AddSessionIdArg(args, "resume", options.Resume, nameof(ClaudeClientOptions.Resume), isWindows);
         }
 
         if (options.IncludePartialMessages)
@@ -270,20 +290,41 @@ internal static class CliArgsBuilder
 
         AddJsonSchemaArgs(args, options);
 
-        if (options.ExtraArgs is { Count: > 0 })
-        {
-            foreach (var (flag, value) in options.ExtraArgs)
-            {
-                args.Add($"--{flag}");
-                if (value is not null)
-                    args.Add(value);
-            }
-        }
+        AddExtraArgs(args, options);
 
         args.Add("--setting-sources");
         args.Add(options.SettingSources is { Count: > 0 }
             ? string.Join(",", options.SettingSources)
             : "");
+    }
+
+    /// <summary>
+    /// Adds each extra arg as a flag. A value that starts with "-" goes in one
+    /// "--flag=value" token, so the CLI cannot read the value as its own flag.
+    /// </summary>
+    private static void AddExtraArgs(List<string> args, ClaudeClientOptions options)
+    {
+        if (options.ExtraArgs is not { Count: > 0 })
+        {
+            return;
+        }
+
+        foreach (var (flag, value) in options.ExtraArgs)
+        {
+            if (value is null)
+            {
+                args.Add($"--{flag}");
+            }
+            else if (value.StartsWith('-'))
+            {
+                args.Add($"--{flag}={value}");
+            }
+            else
+            {
+                args.Add($"--{flag}");
+                args.Add(value);
+            }
+        }
     }
 
     private static void AddJsonSchemaArgs(List<string> args, ClaudeClientOptions options)
