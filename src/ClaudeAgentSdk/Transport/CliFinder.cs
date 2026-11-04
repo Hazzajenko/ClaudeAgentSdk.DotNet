@@ -57,7 +57,7 @@ internal static class CliFinder
         if (isWindows)
         {
             throw new CliNotFoundException(
-                "Claude Code CLI not found. Install the native claude.exe with (PowerShell):\n" +
+                "Claude Code CLI not found. Install the native claude.exe in PowerShell with:\n" +
                 "  irm https://claude.ai/install.ps1 | iex\n" +
                 "\nOr set CLAUDE_CLI_PATH environment variable to a claude.exe.\n" +
                 "Or provide the path via ClaudeClientOptions { CliPath = @\"C:\\path\\to\\claude.exe\" }\n" +
@@ -100,12 +100,12 @@ internal static class CliFinder
             throw new CliConnectionException(
                 $"Refusing to run batch file '{path}'. Windows runs .bat and .cmd files through cmd.exe, " +
                 "which can run commands injected through CLI arguments. Use a native claude.exe instead. " +
-                "Install it with (PowerShell): irm https://claude.ai/install.ps1 | iex");
+                "Install it in PowerShell with: irm https://claude.ai/install.ps1 | iex");
         }
     }
 
     /// <summary>
-    /// Checks every path component, not only the last one. Win32 trims trailing dots and
+    /// Checks every path component. Win32 trims trailing dots and
     /// spaces and collapses "." and ".." segments, so a batch file can hide behind a path
     /// such as <c>claude.cmd\x\..</c>. An NTFS stream name such as <c>claude.cmd:s</c> also
     /// opens the base file, so each component is split on ':' too.
