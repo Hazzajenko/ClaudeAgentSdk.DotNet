@@ -45,6 +45,30 @@ internal sealed class CliTransport : ITransport
             return;
         }
 
+        var startInfo = CreateStartInfo();
+
+        try
+        {
+            _process = Process.Start(startInfo)
+                ?? throw new CliConnectionException("Failed to start CLI process");
+        }
+        catch (System.ComponentModel.Win32Exception ex)
+        {
+            throw new CliNotFoundException(
+                $"Claude Code CLI not found at '{_cliPath}'. Install with: npm install -g @anthropic-ai/claude-code",
+                ex)
+            { SearchedPath = _cliPath };
+        }
+
+        // Read stderr in background (only when stderr is redirected)
+        if (_stderrCallback is not null && _redirectStdin)
+        {
+            _ = Task.Run(() => ReadStderrAsync(cancellationToken), cancellationToken);
+        }
+    }
+
+    internal ProcessStartInfo CreateStartInfo()
+    {
         var startInfo = new ProcessStartInfo
         {
             FileName = _cliPath,
@@ -65,6 +89,9 @@ internal sealed class CliTransport : ITransport
             startInfo.WorkingDirectory = _workingDirectory;
         }
 
+        if (_redirectStdin)
+            startInfo.Environment["CLAUDE_CODE_ENTRYPOINT"] = "sdk-dotnet";
+
         if (_environmentVariables is not null)
         {
             foreach (var (key, value) in _environmentVariables)
@@ -73,27 +100,11 @@ internal sealed class CliTransport : ITransport
             }
         }
 
-        if (_redirectStdin)
-            startInfo.Environment["CLAUDE_CODE_ENTRYPOINT"] = "sdk-dotnet";
+        if (_workingDirectory is not null)
+            startInfo.Environment["PWD"] = _workingDirectory;
 
-        try
-        {
-            _process = Process.Start(startInfo)
-                ?? throw new CliConnectionException("Failed to start CLI process");
-        }
-        catch (System.ComponentModel.Win32Exception ex)
-        {
-            throw new CliNotFoundException(
-                $"Claude Code CLI not found at '{_cliPath}'. Install with: npm install -g @anthropic-ai/claude-code",
-                ex)
-                { SearchedPath = _cliPath };
-        }
-
-        // Read stderr in background (only when stderr is redirected)
-        if (_stderrCallback is not null && _redirectStdin)
-        {
-            _ = Task.Run(() => ReadStderrAsync(cancellationToken), cancellationToken);
-        }
+        startInfo.Environment.Remove("CLAUDECODE");
+        return startInfo;
     }
 
     public async IAsyncEnumerable<Message> ReadMessagesAsync(
