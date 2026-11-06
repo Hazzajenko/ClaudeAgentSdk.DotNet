@@ -19,11 +19,13 @@ internal sealed class SdkMcpRequestHandler
 
     public async Task<JsonElement> HandleAsync(JsonElement message, CancellationToken cancellationToken)
     {
-        string? method = message.TryGetProperty("method", out var m) ? m.GetString() : null;
-        int? id = message.TryGetProperty("id", out var idProp) ? idProp.GetInt32() : null;
+        // JSON-RPC allows a string or a number id. Echo it back as the raw element.
+        JsonElement? id = message.TryGetProperty("id", out var idProp) ? idProp : null;
 
         try
         {
+            string? method = message.TryGetProperty("method", out var m) ? m.GetString() : null;
+
             return method switch
             {
                 "initialize" => BuildInitializeResponse(id),
@@ -39,7 +41,7 @@ internal sealed class SdkMcpRequestHandler
         }
     }
 
-    private JsonElement BuildInitializeResponse(int? id)
+    private JsonElement BuildInitializeResponse(JsonElement? id)
     {
         using var stream = new MemoryStream();
         using (var w = new Utf8JsonWriter(stream))
@@ -63,7 +65,7 @@ internal sealed class SdkMcpRequestHandler
         return ParseElement(stream);
     }
 
-    private JsonElement BuildToolsListResponse(int? id)
+    private JsonElement BuildToolsListResponse(JsonElement? id)
     {
         using var stream = new MemoryStream();
         using (var w = new Utf8JsonWriter(stream))
@@ -84,14 +86,7 @@ internal sealed class SdkMcpRequestHandler
 
                 if (tool.Annotations is { } annotations)
                 {
-                    w.WriteStartObject("annotations");
-                    if (annotations.ReadOnly is { } readOnly)
-                        w.WriteBoolean("readOnly", readOnly);
-                    if (annotations.Destructive is { } destructive)
-                        w.WriteBoolean("destructive", destructive);
-                    if (annotations.OpenWorld is { } openWorld)
-                        w.WriteBoolean("openWorld", openWorld);
-                    w.WriteEndObject();
+                    WriteAnnotations(w, annotations);
                 }
 
                 w.WriteEndObject();
@@ -104,27 +99,62 @@ internal sealed class SdkMcpRequestHandler
         return ParseElement(stream);
     }
 
+    private static void WriteAnnotations(Utf8JsonWriter w, McpToolAnnotations annotations)
+    {
+        w.WriteStartObject("annotations");
+        if (annotations.Title is { } title)
+        {
+            w.WriteString("title", title);
+        }
+        if (annotations.ReadOnly is { } readOnly)
+        {
+            w.WriteBoolean("readOnlyHint", readOnly);
+        }
+        if (annotations.Destructive is { } destructive)
+        {
+            w.WriteBoolean("destructiveHint", destructive);
+        }
+        if (annotations.Idempotent is { } idempotent)
+        {
+            w.WriteBoolean("idempotentHint", idempotent);
+        }
+        if (annotations.OpenWorld is { } openWorld)
+        {
+            w.WriteBoolean("openWorldHint", openWorld);
+        }
+        w.WriteEndObject();
+    }
+
     private async Task<JsonElement> HandleToolCallAsync(
-        JsonElement message, int? id, CancellationToken cancellationToken)
+        JsonElement message, JsonElement? id, CancellationToken cancellationToken)
     {
         var @params = message.GetProperty("params");
         string toolName = @params.GetProperty("name").GetString()!;
         JsonElement arguments = @params.TryGetProperty("arguments", out var args)
             ? args : default;
 
+        // Unknown tools and handler failures go back as isError results the model can read,
+        // not as JSON-RPC errors. This matches the Python SDK.
         if (!_toolMap.TryGetValue(toolName, out var tool))
-            return BuildInternalError(id, $"Tool '{toolName}' not found");
+        {
+            return BuildToolResult(id, McpToolResult.Error($"Tool '{toolName}' not found"));
+        }
 
         McpToolResult result;
         try
         {
             result = await tool.Handler(arguments, cancellationToken);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (!(ex is OperationCanceledException && cancellationToken.IsCancellationRequested))
         {
-            return BuildInternalError(id, ex.Message);
+            result = McpToolResult.Error(ex.Message);
         }
 
+        return BuildToolResult(id, result);
+    }
+
+    private static JsonElement BuildToolResult(JsonElement? id, McpToolResult result)
+    {
         using var stream = new MemoryStream();
         using (var w = new Utf8JsonWriter(stream))
         {
@@ -136,14 +166,16 @@ internal sealed class SdkMcpRequestHandler
             result.WriteContentTo(w);
             w.WriteEndArray();
             if (result.IsError)
-                w.WriteBoolean("is_error", true);
+            {
+                w.WriteBoolean("isError", true);
+            }
             w.WriteEndObject(); // result
             w.WriteEndObject();
         }
         return ParseElement(stream);
     }
 
-    private static JsonElement BuildEmptyResult(int? id)
+    private static JsonElement BuildEmptyResult(JsonElement? id)
     {
         using var stream = new MemoryStream();
         using (var w = new Utf8JsonWriter(stream))
@@ -158,7 +190,7 @@ internal sealed class SdkMcpRequestHandler
         return ParseElement(stream);
     }
 
-    private static JsonElement BuildMethodNotFoundError(int? id, string method)
+    private static JsonElement BuildMethodNotFoundError(JsonElement? id, string method)
     {
         using var stream = new MemoryStream();
         using (var w = new Utf8JsonWriter(stream))
@@ -175,7 +207,7 @@ internal sealed class SdkMcpRequestHandler
         return ParseElement(stream);
     }
 
-    private static JsonElement BuildInternalError(int? id, string message)
+    private static JsonElement BuildInternalError(JsonElement? id, string message)
     {
         using var stream = new MemoryStream();
         using (var w = new Utf8JsonWriter(stream))
@@ -192,10 +224,13 @@ internal sealed class SdkMcpRequestHandler
         return ParseElement(stream);
     }
 
-    private static void WriteId(Utf8JsonWriter w, int? id)
+    private static void WriteId(Utf8JsonWriter w, JsonElement? id)
     {
         if (id is { } value)
-            w.WriteNumber("id", value);
+        {
+            w.WritePropertyName("id");
+            value.WriteTo(w);
+        }
     }
 
     private static JsonElement ParseElement(MemoryStream stream)

@@ -189,7 +189,7 @@ public class SdkMcpIntegrationTests
         var resp = await handler.HandleAsync(callMsg.RootElement, CancellationToken.None);
 
         var result = resp.GetProperty("result");
-        await Assert.That(result.GetProperty("is_error").GetBoolean()).IsTrue();
+        await Assert.That(result.GetProperty("isError").GetBoolean()).IsTrue();
         await Assert.That(result.GetProperty("content")[0].GetProperty("text").GetString())
             .IsEqualTo("Input cannot be empty");
     }
