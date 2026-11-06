@@ -1,3 +1,4 @@
+using ClaudeAgentSdk.Exceptions;
 using ClaudeAgentSdk.Messages;
 using ClaudeAgentSdk.Transport;
 
@@ -71,8 +72,8 @@ public class JsonStreamReaderTests
     [Test]
     public async Task ReadAllAsync_BufferExceeded_Throws()
     {
-        // Create a line that exceeds the buffer
-        string longJson = new string('x', 100);
+        // A single JSON line longer than the limit
+        string longJson = "{\"type\":\"" + new string('x', 100) + "\"}";
 
         await Assert.That(async () =>
         {
@@ -125,6 +126,84 @@ public class JsonStreamReaderTests
 
         // First message should have been yielded before the error
         await Assert.That(messages).Count().IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task ReadAllAsync_NonJsonLineBetweenMessages_SkippedAndBothArrive()
+    {
+        var input = """
+            {"type":"assistant","message":{"content":[{"type":"text","text":"Hello"}],"model":"m"}}
+            [SandboxDebug] Seccomp filtering not available
+            {"type":"result","subtype":"success","duration_ms":1,"duration_api_ms":1,"is_error":false,"num_turns":1,"session_id":"s1"}
+            """;
+
+        var messages = await ReadAll(input);
+
+        await Assert.That(messages).Count().IsEqualTo(2);
+        await Assert.That(messages[0]).IsTypeOf<AssistantMessage>();
+        await Assert.That(messages[1]).IsTypeOf<ResultMessage>();
+    }
+
+    [Test]
+    public async Task ReadAllAsync_MalformedJsonLine_ThrowsMessageParseExceptionWithLine()
+    {
+        var input = """
+            {"type":"assistant","message":{"content":[{"type":"text","text":"Hello"}],"model":"m"}}
+            {"type":"assistant","message":
+            {"content":[]}}
+            """;
+
+        var messages = new List<Message>();
+        MessageParseException? caught = null;
+        try
+        {
+            using var reader = new StringReader(input);
+            await foreach (var msg in JsonStreamReader.ReadAllAsync(reader))
+            {
+                messages.Add(msg);
+            }
+        }
+        catch (MessageParseException ex)
+        {
+            caught = ex;
+        }
+
+        await Assert.That(caught).IsNotNull();
+        await Assert.That(caught!.Line).IsEqualTo("""{"type":"assistant","message":""");
+        await Assert.That(messages).Count().IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task ReadAllAsync_LongNonJsonLine_SkippedWithoutBufferError()
+    {
+        string input = new string('x', 100) + "\n"
+            + """{"type":"result","subtype":"success","duration_ms":1,"duration_api_ms":1,"is_error":false,"num_turns":1,"session_id":"s1"}""";
+
+        using var reader = new StringReader(input);
+        var messages = new List<Message>();
+        await foreach (var msg in JsonStreamReader.ReadAllAsync(reader, maxBufferSize: 200))
+        {
+            messages.Add(msg);
+        }
+
+        await Assert.That(messages).Count().IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task ReadAllAsync_LineUnderLimit_ResetsPerLine()
+    {
+        // Each line is under the limit. Together they are over it.
+        var line = """{"type":"system","subtype":"init"}""";
+        var input = string.Join("\n", line, line, line);
+
+        using var reader = new StringReader(input);
+        var messages = new List<Message>();
+        await foreach (var msg in JsonStreamReader.ReadAllAsync(reader, maxBufferSize: line.Length))
+        {
+            messages.Add(msg);
+        }
+
+        await Assert.That(messages).Count().IsEqualTo(3);
     }
 
     private static async Task<List<Message>> ReadAll(string input, CancellationToken ct = default)

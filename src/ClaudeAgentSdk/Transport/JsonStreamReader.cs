@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using System.Text.Json;
 using ClaudeAgentSdk.Exceptions;
 using ClaudeAgentSdk.Json;
 using ClaudeAgentSdk.Messages;
@@ -8,19 +7,19 @@ namespace ClaudeAgentSdk.Transport;
 
 /// <summary>
 /// Reads newline-delimited JSON from a TextReader and yields parsed Messages.
-/// Handles partial JSON lines by buffering until a complete object is received.
+/// Each line is parsed on its own. Blank lines and lines that do not start with
+/// <c>{</c> are skipped, so debug output from the CLI on stdout does not stop the stream.
 /// </summary>
 internal static class JsonStreamReader
 {
     private const int DefaultMaxBufferSize = 1024 * 1024; // 1MB
+    private const int MaxLineInException = 100;
 
     public static async IAsyncEnumerable<Message> ReadAllAsync(
         TextReader reader,
         int maxBufferSize = DefaultMaxBufferSize,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        string jsonBuffer = "";
-
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -32,43 +31,26 @@ internal static class JsonStreamReader
             }
 
             line = line.Trim();
-            if (string.IsNullOrEmpty(line))
+            if (!line.StartsWith('{'))
             {
+                // Blank line or non-JSON output such as "[SandboxDebug] ...". Skip it.
                 continue;
             }
 
-            jsonBuffer += line;
-
-            if (jsonBuffer.Length > maxBufferSize)
+            if (line.Length > maxBufferSize)
             {
-                jsonBuffer = "";
                 throw new InvalidOperationException(
                     $"JSON message exceeded maximum buffer size of {maxBufferSize} bytes");
             }
 
-            // Check if buffer contains syntactically complete JSON
-            try
-            {
-                using var _ = JsonDocument.Parse(jsonBuffer);
-            }
-            catch (JsonException)
-            {
-                // Incomplete JSON — keep buffering until we have a complete object
-                continue;
-            }
-
-            // JSON is complete — deserialize. Errors here are real bugs and must propagate.
-            string completeJson = jsonBuffer;
-            jsonBuffer = "";
-
             Message? message;
             try
             {
-                message = ClaudeJsonOptions.DeserializeMessage(completeJson);
+                message = ClaudeJsonOptions.DeserializeMessage(line);
             }
             catch (Exception ex)
             {
-                string truncated = completeJson.Length > 100 ? completeJson[..100] : completeJson;
+                string truncated = line.Length > MaxLineInException ? line[..MaxLineInException] : line;
                 throw new MessageParseException(
                     $"Failed to parse CLI JSON: {ex.Message}", ex)
                     { Line = truncated };

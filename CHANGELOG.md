@@ -14,6 +14,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `Resume` now goes to the CLI as one `--resume=<value>` token. Before, a value such as `--permission-mode=bypassPermissions` became its own CLI flag. On Windows, a `Resume` value with `& | < > ^ % ! "`, CR or LF throws `ArgumentException`.
 - An `ExtraArgs` value that starts with `-` now goes to the CLI as one `--<flag>=<value>` token, so the CLI cannot read the value as its own flag.
 
+### Fixed
+
+- The stdout reader now parses each line on its own and skips lines that do not start with `{`. Before, one debug line such as `[SandboxDebug] ...` made the reader join every later line onto it, so no more messages arrived until the 1 MB limit threw. A `{` line that does not parse now throws `MessageParseException` at once.
+
 ## [0.2.0] - 2026-11-04
 
 ### Added
