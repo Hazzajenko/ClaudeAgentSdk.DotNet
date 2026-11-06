@@ -30,6 +30,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Fixed
 
 - The stdout reader now parses each line on its own and skips lines that do not start with `{`. Before, one debug line such as `[SandboxDebug] ...` made the reader join every later line onto it, so no more messages arrived until the 1 MB limit threw. A `{` line that does not parse now throws `MessageParseException` at once.
+- The CLI no longer blocks when `StderrCallback` is not set. The SDK redirected stderr in streaming mode and never read it, so the CLI stopped when the pipe filled. Stderr now goes to the parent process when there is no callback.
+- An exception from `StderrCallback` no longer stops later stderr lines. The SDK catches it and passes the next line to the callback.
+- Cancelling the token of the first `SendAsync` or `QueryAsync` call no longer stops `StderrCallback`. The stderr reader used that token, so it stopped and the CLI blocked on a full stderr pipe. The reader now stops when the transport is disposed.
 
 ## [0.2.0] - 2026-11-04
 
