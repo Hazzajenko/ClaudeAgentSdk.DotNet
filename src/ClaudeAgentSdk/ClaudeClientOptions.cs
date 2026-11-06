@@ -33,6 +33,17 @@ public sealed record ClaudeClientOptions
     public IReadOnlyList<string>? Betas { get; init; }
     public bool EnableFileCheckpointing { get; init; }
     public IReadOnlyList<string>? SettingSources { get; init; }
+
+    /// <summary>
+    /// Skills to turn on for the main session. <see cref="SkillsConfigAll"/> adds the bare
+    /// <c>Skill</c> rule to <c>--allowedTools</c>. <see cref="SkillsConfigList"/> adds one
+    /// <c>Skill(name)</c> rule for each name and sends the names in the initialize request,
+    /// so the CLI loads only those skills. When set and <see cref="SettingSources"/> is null,
+    /// the setting sources become <c>user,project</c> so the CLI finds installed skills.
+    /// Null adds nothing. An invalid name throws <see cref="ArgumentException"/> at connect.
+    /// This is a context filter. The files of other skills stay readable through tools such as Read.
+    /// </summary>
+    public SkillsConfig? Skills { get; init; }
     public IReadOnlyList<SdkPluginConfig>? Plugins { get; init; }
     public string? Settings { get; init; }
     public SandboxSettings? Sandbox { get; init; }
@@ -75,5 +86,21 @@ public abstract record ThinkingConfig;
 public sealed record ThinkingConfigAdaptive : ThinkingConfig;
 public sealed record ThinkingConfigEnabled(int BudgetTokens) : ThinkingConfig;
 public sealed record ThinkingConfigDisabled : ThinkingConfig;
+
+/// <summary>
+/// The value of <see cref="ClaudeClientOptions.Skills"/>.
+/// </summary>
+public abstract record SkillsConfig;
+
+/// <summary>
+/// Turns on every skill that the CLI finds.
+/// </summary>
+public sealed record SkillsConfigAll : SkillsConfig;
+
+/// <summary>
+/// Turns on only the named skills. A name is the skill directory name, or
+/// <c>plugin:skill</c> for a plugin skill. An empty list hides every skill.
+/// </summary>
+public sealed record SkillsConfigList(IReadOnlyList<string> Names) : SkillsConfig;
 
 public sealed record SdkPluginConfig(string Type, string Path);

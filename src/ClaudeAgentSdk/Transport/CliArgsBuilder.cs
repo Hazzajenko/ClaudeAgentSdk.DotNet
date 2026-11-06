@@ -132,10 +132,11 @@ internal static class CliArgsBuilder
             args.Add(string.Join(",", options.Tools));
         }
 
-        if (options.AllowedTools is { Count: > 0 })
+        var allowedTools = BuildAllowedTools(options);
+        if (allowedTools.Count > 0)
         {
             args.Add("--allowedTools");
-            args.Add(string.Join(",", options.AllowedTools));
+            args.Add(string.Join(",", allowedTools));
         }
 
         if (options.DisallowedTools is { Count: > 0 })
@@ -292,10 +293,48 @@ internal static class CliArgsBuilder
 
         AddExtraArgs(args, options);
 
+        // Skills need the user and project sources to be found, so they are the default when Skills is set.
+        var settingSources = options.SettingSources
+            ?? (options.Skills is not null ? ["user", "project"] : null);
+
         args.Add("--setting-sources");
-        args.Add(options.SettingSources is { Count: > 0 }
-            ? string.Join(",", options.SettingSources)
+        args.Add(settingSources is { Count: > 0 }
+            ? string.Join(",", settingSources)
             : "");
+    }
+
+    /// <summary>
+    /// Returns <see cref="ClaudeClientOptions.AllowedTools"/> with the rules from
+    /// <see cref="ClaudeClientOptions.Skills"/> added. A rule that is already there is not added again.
+    /// </summary>
+    private static List<string> BuildAllowedTools(ClaudeClientOptions options)
+    {
+        var allowedTools = new List<string>(options.AllowedTools ?? []);
+
+        SkillNameValidator.Validate(options.Skills);
+
+        switch (options.Skills)
+        {
+            case SkillsConfigAll:
+                AddIfMissing(allowedTools, "Skill");
+                break;
+            case SkillsConfigList list:
+                foreach (string name in list.Names)
+                {
+                    AddIfMissing(allowedTools, $"Skill({name})");
+                }
+                break;
+        }
+
+        return allowedTools;
+    }
+
+    private static void AddIfMissing(List<string> list, string value)
+    {
+        if (!list.Contains(value))
+        {
+            list.Add(value);
+        }
     }
 
     /// <summary>

@@ -7,6 +7,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- `ClaudeClientOptions.Skills` turns on skills. `SkillsConfigAll` adds the `Skill` rule to `--allowedTools`. `SkillsConfigList` adds one `Skill(name)` rule for each name and sends the names in the initialize request. When `SettingSources` is null, it becomes `user,project`. A name with a comma, a parenthesis, a control character, a byte order mark, a wildcard, a leading `/`, surrounding whitespace, an unpaired surrogate or a bad backslash throws `ArgumentException` at connect, so a name cannot add other permission rules.
+
 ### Security
 
 - On Windows, a `.bat` or `.cmd` path from `CliPath` or `CLAUDE_CLI_PATH` now throws `CliConnectionException` before any process starts. Windows runs batch files through cmd.exe, which can run commands injected through CLI arguments. Use the native `claude.exe` instead.
