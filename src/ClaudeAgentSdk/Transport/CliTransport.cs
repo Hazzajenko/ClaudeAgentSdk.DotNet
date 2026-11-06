@@ -97,6 +97,15 @@ internal sealed class CliTransport : ITransport
             startInfo.WorkingDirectory = _workingDirectory;
         }
 
+        // The parent may run inside Claude Code. With CLAUDECODE set, the child CLI acts as a nested session.
+        startInfo.Environment.Remove("CLAUDECODE");
+
+        // Set before the user values, so a user CLAUDE_CODE_ENTRYPOINT wins.
+        if (_redirectStdin)
+        {
+            startInfo.Environment["CLAUDE_CODE_ENTRYPOINT"] = "sdk-dotnet";
+        }
+
         if (_environmentVariables is not null)
         {
             foreach (var (key, value) in _environmentVariables)
@@ -105,8 +114,12 @@ internal sealed class CliTransport : ITransport
             }
         }
 
-        if (_redirectStdin)
-            startInfo.Environment["CLAUDE_CODE_ENTRYPOINT"] = "sdk-dotnet";
+        // The inherited PWD names the parent's directory. Tools in the child read PWD, so it must match the working directory.
+        // ProcessStartInfo resolves a relative directory against the parent's directory and ignores an empty one. PWD does the same.
+        if (!string.IsNullOrEmpty(_workingDirectory))
+        {
+            startInfo.Environment["PWD"] = Path.GetFullPath(_workingDirectory);
+        }
 
         return startInfo;
     }

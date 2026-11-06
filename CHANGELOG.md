@@ -17,6 +17,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- The CLI process no longer gets `CLAUDECODE` from the parent environment. Before, a host that ran inside Claude Code started the CLI as a nested session. A `CLAUDECODE` value in `EnvironmentVariables` still goes to the CLI.
+- A `CLAUDE_CODE_ENTRYPOINT` value in `EnvironmentVariables` now goes to the CLI. Before, the SDK always replaced it with `sdk-dotnet`.
+- With `WorkingDirectory` set, the CLI process now gets `PWD` equal to that directory. Before, it got the parent `PWD`, which names a different directory.
 - A message with an unknown top-level `type` is now skipped and the session continues. Before, it threw `MessageParseException` and ended the session. `ClaudeJsonOptions.DeserializeMessage` returns `null` for an unknown type.
 - A failed SDK MCP tool result now has `"isError": true` on the wire. Before, the SDK wrote `is_error`, which MCP does not read, so the model saw each failed result as a success.
 - SDK MCP tool annotations now go to the CLI in `tools/list` as `readOnlyHint`, `destructiveHint` and `openWorldHint`, the MCP names. Before, the SDK wrote `readOnly`, `destructive` and `openWorld`, which MCP clients drop. `ClaudeClient.GetMcpStatusAsync` still reads the `readOnly`, `destructive` and `openWorld` names, because the CLI `mcp_status` response uses them.
