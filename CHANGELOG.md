@@ -21,6 +21,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - An SDK MCP server now echoes a JSON-RPC `id` back unchanged. Before, a string `id` threw before the request was handled.
 - `Sessions.GetMessages` now returns every call and every result of a turn that ran tools in parallel. Before, it followed one `parentUuid` branch and dropped the other calls and their results.
 - `Sessions.List` now reads `CreatedAt` from the first `timestamp` in the first 64 KB of the file. Before, it read only the first line, so a session that starts with a metadata record such as `permission-mode` got no `CreatedAt`.
+- The stdout reader now parses each line on its own and skips lines that do not start with `{`. Before, one debug line such as `[SandboxDebug] ...` made the reader join every later line onto it, so no more messages arrived until the 1 MB limit threw. A `{` line that does not parse now throws `MessageParseException` at once.
+- The CLI no longer blocks when `StderrCallback` is not set. The SDK redirected stderr in streaming mode and never read it, so the CLI stopped when the pipe filled. Stderr now goes to the parent process when there is no callback.
+- An exception from `StderrCallback` no longer stops later stderr lines. The SDK catches it and passes the next line to the callback.
+- Cancelling the token of the first `SendAsync` or `QueryAsync` call no longer stops `StderrCallback`. The stderr reader used that token, so it stopped and the CLI blocked on a full stderr pipe. The reader now stops when the transport is disposed.
 
 ### Security
 
@@ -28,13 +32,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - The Windows fallback search now probes only `~/.local/bin/claude.exe`. It no longer probes extensionless names or `/usr/local/bin/claude`, which resolves to a folder on the current drive that any local user can create. The Windows not-found message no longer recommends the npm package.
 - `Resume` now goes to the CLI as one `--resume=<value>` token. Before, a value such as `--permission-mode=bypassPermissions` became its own CLI flag. On Windows, a `Resume` value with `& | < > ^ % ! "`, CR or LF throws `ArgumentException`.
 - An `ExtraArgs` value that starts with `-` now goes to the CLI as one `--<flag>=<value>` token, so the CLI cannot read the value as its own flag.
-
-### Fixed
-
-- The stdout reader now parses each line on its own and skips lines that do not start with `{`. Before, one debug line such as `[SandboxDebug] ...` made the reader join every later line onto it, so no more messages arrived until the 1 MB limit threw. A `{` line that does not parse now throws `MessageParseException` at once.
-- The CLI no longer blocks when `StderrCallback` is not set. The SDK redirected stderr in streaming mode and never read it, so the CLI stopped when the pipe filled. Stderr now goes to the parent process when there is no callback.
-- An exception from `StderrCallback` no longer stops later stderr lines. The SDK catches it and passes the next line to the callback.
-- Cancelling the token of the first `SendAsync` or `QueryAsync` call no longer stops `StderrCallback`. The stderr reader used that token, so it stopped and the CLI blocked on a full stderr pipe. The reader now stops when the transport is disposed.
 
 ## [0.2.0] - 2026-11-04
 
