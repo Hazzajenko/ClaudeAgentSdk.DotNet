@@ -20,6 +20,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - An unknown tool or an exception from an SDK MCP tool handler now comes back as an `isError` tool result with the message, which the model can read. Before, it came back as a JSON-RPC error. A handler that throws `OperationCanceledException` after its token is cancelled still gets a JSON-RPC error.
 - An SDK MCP server now echoes a JSON-RPC `id` back unchanged. Before, a string `id` threw before the request was handled.
 - `Sessions.GetMessages` now returns every call and every result of a turn that ran tools in parallel. Before, it followed one `parentUuid` branch and dropped the other calls and their results.
+- `Sessions.List` now reads `CreatedAt` from the first `timestamp` in the first 64 KB of the file. Before, it read only the first line, so a session that starts with a metadata record such as `permission-mode` got no `CreatedAt`.
 
 ### Security
 

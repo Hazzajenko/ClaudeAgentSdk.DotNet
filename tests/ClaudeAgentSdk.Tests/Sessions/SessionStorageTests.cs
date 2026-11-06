@@ -132,6 +132,32 @@ public class SessionStorageTests
     }
 
     [Test]
+    public async Task ParseSessionInfoFromLite_FirstLineHasNoTimestamp_TakesCreatedAtFromNextRecord()
+    {
+        string head = string.Join("\n",
+            """{"type":"permission-mode","permissionMode":"acceptEdits"}""",
+            """{"type":"user","message":{"content":"hello"},"timestamp":"2026-01-15T10:30:00.000Z"}""");
+        var lite = new SessionStorage.LiteSessionFile(1800000000000, 1024, head, head);
+
+        var info = SessionStorage.ParseSessionInfoFromLite("test-uuid-1234-5678-90ab-cdef12345678", lite);
+
+        await Assert.That(info).IsNotNull();
+        await Assert.That(info!.CreatedAt).IsEqualTo(1768473000000L);
+    }
+
+    [Test]
+    public async Task ParseSessionInfoFromLite_NoTimestampInHead_CreatedAtIsNull()
+    {
+        string head = """{"type":"user","message":{"content":"hello"}}""";
+        var lite = new SessionStorage.LiteSessionFile(1800000000000, 1024, head, head);
+
+        var info = SessionStorage.ParseSessionInfoFromLite("test-uuid-1234-5678-90ab-cdef12345678", lite);
+
+        await Assert.That(info).IsNotNull();
+        await Assert.That(info!.CreatedAt).IsNull();
+    }
+
+    [Test]
     public async Task ParseSessionInfoFromLite_WithCustomTitle_UsesTitleAsSummary()
     {
         string head = """{"type":"user","uuid":"u1","message":{"role":"user","content":"Hello"}}""";
