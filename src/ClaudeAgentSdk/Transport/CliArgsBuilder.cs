@@ -437,36 +437,45 @@ internal static class CliArgsBuilder
                 w.WriteNumber("httpProxyPort", httpProxy);
             if (network.SocksProxyPort is { } socksProxy)
                 w.WriteNumber("socksProxyPort", socksProxy);
-            if (network.AllowUnixSockets is { Count: > 0 })
-            {
-                w.WriteStartArray("allowUnixSockets");
-                foreach (string sock in network.AllowUnixSockets)
-                    w.WriteStringValue(sock);
-                w.WriteEndArray();
-            }
+            if (network.AllowManagedDomainsOnly is { } managedOnly)
+                w.WriteBoolean("allowManagedDomainsOnly", managedOnly);
+            WriteStringArray(w, "allowedDomains", network.AllowedDomains);
+            WriteStringArray(w, "deniedDomains", network.DeniedDomains);
+            WriteStringArray(w, "allowUnixSockets", network.AllowUnixSockets);
+            WriteStringArray(w, "allowMachLookup", network.AllowMachLookup);
             w.WriteEndObject();
         }
 
         if (sandbox.IgnoreViolations is { } violations)
         {
             w.WriteStartObject("ignoreViolations");
-            if (violations.File is { Count: > 0 })
+            foreach (KeyValuePair<string, IReadOnlyList<string>> entry in violations)
             {
-                w.WriteStartArray("file");
-                foreach (string f in violations.File)
-                    w.WriteStringValue(f);
-                w.WriteEndArray();
-            }
-            if (violations.Network is { Count: > 0 })
-            {
-                w.WriteStartArray("network");
-                foreach (string n in violations.Network)
-                    w.WriteStringValue(n);
+                w.WriteStartArray(entry.Key);
+                foreach (string value in entry.Value)
+                {
+                    w.WriteStringValue(value);
+                }
                 w.WriteEndArray();
             }
             w.WriteEndObject();
         }
 
         w.WriteEndObject();
+    }
+
+    private static void WriteStringArray(Utf8JsonWriter w, string name, IReadOnlyList<string>? values)
+    {
+        if (values is not { Count: > 0 })
+        {
+            return;
+        }
+
+        w.WriteStartArray(name);
+        foreach (string value in values)
+        {
+            w.WriteStringValue(value);
+        }
+        w.WriteEndArray();
     }
 }
