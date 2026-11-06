@@ -34,6 +34,19 @@ public class JsonStreamReaderTests
     }
 
     [Test]
+    public async Task ReadAllAsync_ConversationReset_Yields()
+    {
+        var input = """
+            {"type":"conversation_reset","new_conversation_id":"conv-002","uuid":"u1","session_id":"s1"}
+            """;
+
+        var messages = await ReadAll(input);
+
+        await Assert.That(messages).Count().IsEqualTo(1);
+        await Assert.That(messages[0]).IsTypeOf<ConversationResetMessage>();
+    }
+
+    [Test]
     public async Task ReadAllAsync_EmptyLines_Skipped()
     {
         var input = """

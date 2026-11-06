@@ -38,7 +38,23 @@ public static class ClaudeJsonOptions
                 root.Deserialize(ClaudeJsonContext.Default.RateLimitEventWire)!),
             "control_response" => new ControlResponseMessage(root.Clone()),
             "control_request" => new ControlRequestMessage(root.Clone()),
+            "conversation_reset" => new ConversationResetMessage
+            {
+                NewConversationId = GetRequiredString(root, "new_conversation_id", "conversation_reset"),
+                Uuid = GetRequiredString(root, "uuid", "conversation_reset"),
+                SessionId = GetRequiredString(root, "session_id", "conversation_reset"),
+            },
             var unknown => throw new JsonException($"Unknown message type: '{unknown}'")
         };
+    }
+
+    private static string GetRequiredString(JsonElement root, string name, string messageType)
+    {
+        if (root.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.String)
+        {
+            return value.GetString()!;
+        }
+
+        throw new JsonException($"Missing required field '{name}' in {messageType} message");
     }
 }

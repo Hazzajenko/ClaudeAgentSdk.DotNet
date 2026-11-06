@@ -357,6 +357,49 @@ public class MessageDeserializationTests
     }
 
     [Test]
+    public async Task ConversationResetMessage_Deserializes()
+    {
+        const string json = """
+            {
+                "type": "conversation_reset",
+                "new_conversation_id": "conv-002",
+                "uuid": "msg-001",
+                "session_id": "sess-001"
+            }
+            """;
+
+        var msg = ClaudeJsonOptions.DeserializeMessage(json);
+
+        await Assert.That(msg).IsTypeOf<ConversationResetMessage>();
+        var reset = (ConversationResetMessage)msg!;
+        await Assert.That(reset.NewConversationId).IsEqualTo("conv-002");
+        await Assert.That(reset.Uuid).IsEqualTo("msg-001");
+        await Assert.That(reset.SessionId).IsEqualTo("sess-001");
+    }
+
+    [Test]
+    public async Task FormatMessage_ConversationReset_ShowsNewConversationId()
+    {
+        var reset = new ConversationResetMessage
+        {
+            NewConversationId = "conv-002",
+            Uuid = "msg-001",
+            SessionId = "sess-001",
+        };
+
+        await Assert.That(Claude.FormatMessage(reset)).IsEqualTo("[conversation_reset] conv-002");
+    }
+
+    [Test]
+    public async Task ConversationResetMessage_MissingField_ThrowsJsonException()
+    {
+        const string json = """{"type": "conversation_reset", "uuid": "msg-001", "session_id": "sess-001"}""";
+
+        await Assert.That(() => ClaudeJsonOptions.DeserializeMessage(json))
+            .Throws<System.Text.Json.JsonException>();
+    }
+
+    [Test]
     public async Task TaskStartedMessage_Deserializes()
     {
         const string json = """

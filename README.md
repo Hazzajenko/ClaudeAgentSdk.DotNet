@@ -290,7 +290,7 @@ await foreach (var msg in Claude.QueryAsync(
 
 ## Types
 
-**Messages** — `AssistantMessage`, `UserMessage`, `SystemMessage`, `ResultMessage`, `StreamEvent`, `RateLimitEvent`
+**Messages** — `AssistantMessage`, `UserMessage`, `SystemMessage`, `ResultMessage`, `StreamEvent`, `RateLimitEvent`, `ConversationResetMessage`
 
 **Content Blocks** — `TextBlock`, `ThinkingBlock`, `ToolUseBlock`, `ToolResultBlock`
 
