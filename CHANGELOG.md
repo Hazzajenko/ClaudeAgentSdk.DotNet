@@ -10,6 +10,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Added
 
 - `ConversationResetMessage` with `NewConversationId`, `Uuid` and `SessionId`. The CLI sends a `conversation_reset` frame after `/clear`.
+- `McpToolAnnotations.Title` and `McpToolAnnotations.Idempotent`. An SDK MCP server writes them in `tools/list` as `title` and `idempotentHint`. The CLI `mcp_status` response has no such values, so `GetMcpStatusAsync` leaves them null.
 
 ### Fixed
 

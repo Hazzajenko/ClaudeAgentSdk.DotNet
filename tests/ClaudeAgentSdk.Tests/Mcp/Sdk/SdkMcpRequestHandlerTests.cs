@@ -68,8 +68,10 @@ public class SdkMcpRequestHandlerTests
             async (args, ct) => McpToolResult.Text("data"),
             new McpToolAnnotations
             {
+                Title = "Reader",
                 ReadOnly = true,
                 Destructive = false,
+                Idempotent = true,
                 OpenWorld = false
             });
 
@@ -79,8 +81,10 @@ public class SdkMcpRequestHandlerTests
         var response = await handler.HandleAsync(msg.RootElement, CancellationToken.None);
 
         var annotations = response.GetProperty("result").GetProperty("tools")[0].GetProperty("annotations");
+        await Assert.That(annotations.GetProperty("title").GetString()).IsEqualTo("Reader");
         await Assert.That(annotations.GetProperty("readOnlyHint").GetBoolean()).IsTrue();
         await Assert.That(annotations.GetProperty("destructiveHint").GetBoolean()).IsFalse();
+        await Assert.That(annotations.GetProperty("idempotentHint").GetBoolean()).IsTrue();
         await Assert.That(annotations.GetProperty("openWorldHint").GetBoolean()).IsFalse();
         await Assert.That(annotations.TryGetProperty("readOnly", out _)).IsFalse();
         await Assert.That(annotations.TryGetProperty("destructive", out _)).IsFalse();

@@ -102,6 +102,10 @@ internal sealed class SdkMcpRequestHandler
     private static void WriteAnnotations(Utf8JsonWriter w, McpToolAnnotations annotations)
     {
         w.WriteStartObject("annotations");
+        if (annotations.Title is { } title)
+        {
+            w.WriteString("title", title);
+        }
         if (annotations.ReadOnly is { } readOnly)
         {
             w.WriteBoolean("readOnlyHint", readOnly);
@@ -109,6 +113,10 @@ internal sealed class SdkMcpRequestHandler
         if (annotations.Destructive is { } destructive)
         {
             w.WriteBoolean("destructiveHint", destructive);
+        }
+        if (annotations.Idempotent is { } idempotent)
+        {
+            w.WriteBoolean("idempotentHint", idempotent);
         }
         if (annotations.OpenWorld is { } openWorld)
         {
