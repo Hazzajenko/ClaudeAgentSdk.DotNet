@@ -39,6 +39,38 @@ internal static class SessionMutations
         AppendToSession(sessionId, data, directory);
     }
 
+    public static void Delete(string sessionId, string? directory)
+    {
+        if (SessionStorage.ValidateUuid(sessionId) is null)
+            throw new ArgumentException($"Invalid session_id: {sessionId}", nameof(sessionId));
+
+        if (SessionStorage.FindSessionFile(sessionId, directory) is not var (filePath, projectDir))
+            throw NotFound(sessionId, directory);
+
+        try
+        {
+            File.Delete(filePath);
+        }
+        catch (DirectoryNotFoundException ex)
+        {
+            throw new FileNotFoundException($"Session {sessionId} not found", ex);
+        }
+
+        // Subagent transcripts live in a sibling <sessionId>/ directory, which is often absent.
+        try
+        {
+            Directory.Delete(Path.Combine(projectDir, sessionId), recursive: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
+
+    private static FileNotFoundException NotFound(string sessionId, string? directory) =>
+        new(directory is null
+            ? $"Session {sessionId} not found"
+            : $"Session {sessionId} not found in project directory for {directory}");
+
     private static string SanitizeUnicode(string input)
     {
         var sb = new StringBuilder(input.Length);

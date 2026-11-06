@@ -11,7 +11,7 @@ namespace ClaudeAgentSdk.Sessions;
 /// </summary>
 internal static partial class SessionStorage
 {
-    private const int LiteReadBufSize = 65536;
+    public const int LiteReadBufSize = 65536;
     private const int MaxSanitizedLength = 200;
 
     [GeneratedRegex(@"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", RegexOptions.IgnoreCase)]
@@ -103,6 +103,42 @@ internal static partial class SessionStorage
                 return entry;
         }
         return null;
+    }
+
+    /// <summary>
+    /// Finds a non-empty session file and the project directory that holds it.
+    /// With <paramref name="directory"/>, looks only in that project. Otherwise
+    /// looks in each project directory. Ported from Python SDK
+    /// <c>_find_session_file_with_dir</c>.
+    /// </summary>
+    public static (string FilePath, string ProjectDir)? FindSessionFile(string sessionId, string? directory)
+    {
+        string fileName = $"{sessionId}.jsonl";
+
+        if (directory is not null)
+        {
+            string? projectDir = FindProjectDir(CanonicalizePath(directory));
+            return projectDir is not null && IsNonEmptyFile(Path.Combine(projectDir, fileName))
+                ? (Path.Combine(projectDir, fileName), projectDir)
+                : null;
+        }
+
+        string projectsDir = GetProjectsDir();
+        if (!Directory.Exists(projectsDir)) return null;
+
+        foreach (string entry in Directory.GetDirectories(projectsDir))
+        {
+            string path = Path.Combine(entry, fileName);
+            if (IsNonEmptyFile(path))
+                return (path, entry);
+        }
+        return null;
+    }
+
+    private static bool IsNonEmptyFile(string path)
+    {
+        var info = new FileInfo(path);
+        return info.Exists && info.Length > 0;
     }
 
     /// <summary>

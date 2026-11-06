@@ -133,6 +133,47 @@ public class SessionsTests
         }
     }
 
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task List_WithOffsetAndLimit_ReturnsPageOfNewestFirst(bool withDirectory)
+    {
+        string projectPath = Path.Combine(_tempDir, "work", "paged");
+        string projectDir = CreateProjectDir(
+            ClaudeAgentSdk.Sessions.SessionStorage.SanitizePath(Path.GetFullPath(projectPath)));
+        string[] ids =
+        [
+            "11111111-1111-1111-1111-111111111111",
+            "22222222-2222-2222-2222-222222222222",
+            "33333333-3333-3333-3333-333333333333",
+            "44444444-4444-4444-4444-444444444444",
+        ];
+        for (int i = 0; i < ids.Length; i++)
+        {
+            CreateSessionFile(projectDir, ids[i],
+                $$$"""{"type":"user","uuid":"u{{{i}}}","message":{"role":"user","content":"Session {{{i}}}"}}""",
+                mtime: new DateTime(2024, 1, 1 + i, 0, 0, 0, DateTimeKind.Utc));
+        }
+
+        Environment.SetEnvironmentVariable("CLAUDE_CONFIG_DIR", _tempDir);
+        try
+        {
+            string? directory = withDirectory ? projectPath : null;
+
+            var page = ClaudeAgentSdk.Sessions.Sessions.List(directory, limit: 2, offset: 1);
+            var rest = ClaudeAgentSdk.Sessions.Sessions.List(directory, offset: 3);
+            var past = ClaudeAgentSdk.Sessions.Sessions.List(directory, offset: 10);
+
+            await Assert.That(string.Join(",", page.Select(s => s.SessionId))).IsEqualTo($"{ids[2]},{ids[1]}");
+            await Assert.That(string.Join(",", rest.Select(s => s.SessionId))).IsEqualTo(ids[0]);
+            await Assert.That(past.Count).IsEqualTo(0);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("CLAUDE_CONFIG_DIR", null);
+        }
+    }
+
     private string CreateProjectDir(string name)
     {
         string dir = Path.Combine(_tempDir, "projects", name);

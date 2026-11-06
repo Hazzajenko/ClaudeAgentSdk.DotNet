@@ -389,15 +389,77 @@ internal static class SessionMessageParser
     public static IReadOnlyList<SessionMessage> ToSessionMessages(
         List<JsonElement> chain, int? limit = null, int offset = 0)
     {
-        var visible = chain.Where(IsVisibleMessage).ToList();
-        var messages = visible.Select(e => new SessionMessage
-        {
-            Type = e.GetProperty("type").GetString()!,
-            Uuid = e.GetProperty("uuid").GetString()!,
-            SessionId = e.TryGetProperty("sessionId", out var sid) ? sid.GetString() ?? "" : "",
-            Message = e.TryGetProperty("message", out var msg) ? msg.Clone() : default
-        }).ToList();
+        var messages = chain.Where(IsVisibleMessage).Select(e => ToSessionMessage(e)).ToList();
+        return Page(messages, limit, offset);
+    }
 
+    /// <summary>
+    /// Build the chain of a subagent transcript. A subagent transcript is linear,
+    /// so the last user or assistant entry is the leaf. Walk <c>parentUuid</c> to
+    /// the root. Ported from Python SDK <c>_build_subagent_chain</c>.
+    /// </summary>
+    public static List<JsonElement> BuildSubagentChain(List<JsonElement> entries)
+    {
+        if (entries.Count == 0) return [];
+
+        var byUuid = new Dictionary<string, JsonElement>();
+        foreach (var entry in entries)
+            byUuid[Uuid(entry)] = entry;
+
+        JsonElement? leaf = null;
+        for (int i = entries.Count - 1; i >= 0; i--)
+        {
+            if (GetString(entries[i], "type") is "user" or "assistant")
+            {
+                leaf = entries[i];
+                break;
+            }
+        }
+        if (leaf is null) return [];
+
+        var chain = new List<JsonElement>();
+        var seen = new HashSet<string>();
+        JsonElement? current = leaf;
+        while (current is { } cur)
+        {
+            if (!seen.Add(Uuid(cur))) break;
+            chain.Add(cur);
+            current = GetString(cur, "parentUuid") is { Length: > 0 } parentId
+                && byUuid.TryGetValue(parentId, out var parent) ? parent : null;
+        }
+
+        chain.Reverse();
+        return chain;
+    }
+
+    /// <summary>
+    /// Convert a subagent chain to messages. Each message gets the same parent ids.
+    /// Unlike <see cref="ToSessionMessages"/>, meta and sidechain entries are kept,
+    /// because every entry in a subagent transcript is a sidechain entry.
+    /// </summary>
+    public static IReadOnlyList<SessionMessage> ToSubagentMessages(
+        List<JsonElement> chain, int? limit, int offset, string? parentToolUseId, string? parentAgentId)
+    {
+        var messages = chain
+            .Where(e => GetString(e, "type") is "user" or "assistant")
+            .Select(e => ToSessionMessage(e, parentToolUseId, parentAgentId))
+            .ToList();
+        return Page(messages, limit, offset);
+    }
+
+    private static SessionMessage ToSessionMessage(
+        JsonElement e, string? parentToolUseId = null, string? parentAgentId = null) => new()
+    {
+        Type = e.GetProperty("type").GetString()!,
+        Uuid = e.GetProperty("uuid").GetString()!,
+        SessionId = e.TryGetProperty("sessionId", out var sid) ? sid.GetString() ?? "" : "",
+        Message = e.TryGetProperty("message", out var msg) ? msg.Clone() : default,
+        ParentToolUseId = parentToolUseId,
+        ParentAgentId = parentAgentId,
+    };
+
+    private static IReadOnlyList<SessionMessage> Page(List<SessionMessage> messages, int? limit, int offset)
+    {
         if (limit is > 0)
             return messages.Skip(offset).Take(limit.Value).ToList();
         if (offset > 0)

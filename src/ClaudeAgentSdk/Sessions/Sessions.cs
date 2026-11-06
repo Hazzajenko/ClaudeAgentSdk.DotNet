@@ -1,3 +1,5 @@
+using System.ComponentModel;
+
 namespace ClaudeAgentSdk.Sessions;
 
 /// <summary>
@@ -9,12 +11,29 @@ public static class Sessions
     /// List sessions sorted by last modified (newest first).
     /// When directory is provided, returns sessions for that project. Otherwise all projects.
     /// </summary>
-    public static IReadOnlyList<SessionInfo> List(string? directory = null, int? limit = null)
+    /// <param name="directory">Project directory. When null, sessions from all projects are listed.</param>
+    /// <param name="limit">Maximum number of sessions to return. Null or 0 returns all.</param>
+    /// <param name="offset">Number of sessions to skip from the start of the sorted list.</param>
+    public static IReadOnlyList<SessionInfo> List(string? directory = null, int? limit = null, int offset = 0)
     {
-        if (directory is not null)
-            return ListForProject(directory, limit);
-        return ListAllSessions(limit);
+        var sessions = directory is not null ? ListForProject(directory) : ListAllSessions();
+        sessions.Sort((a, b) => b.LastModified.CompareTo(a.LastModified));
+
+        IEnumerable<SessionInfo> page = sessions;
+        if (offset > 0)
+            page = page.Skip(offset);
+        if (limit is > 0)
+            page = page.Take(limit.Value);
+        return page.ToList();
     }
+
+    /// <summary>
+    /// List sessions sorted by last modified (newest first). Kept so that code
+    /// compiled against the overload without <c>offset</c> still runs.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static IReadOnlyList<SessionInfo> List(string? directory, int? limit) =>
+        List(directory, limit, offset: 0);
 
     /// <summary>
     /// Get metadata for a single session by ID.
@@ -71,6 +90,33 @@ public static class Sessions
     }
 
     /// <summary>
+    /// List the subagent ids of a session. Subagent transcripts are at
+    /// <c>&lt;projectDir&gt;/&lt;sessionId&gt;/subagents/agent-&lt;agentId&gt;.jsonl</c>,
+    /// and can be in nested folders such as <c>workflows/&lt;runId&gt;/</c>.
+    /// </summary>
+    /// <returns>
+    /// The agent ids. Empty when <paramref name="sessionId"/> is not a valid UUID,
+    /// the session is not found, or the session has no subagents.
+    /// </returns>
+    public static IReadOnlyList<string> ListSubagents(string sessionId, string? directory = null) =>
+        SubagentTranscripts.List(sessionId, directory);
+
+    /// <summary>
+    /// Get the messages of a subagent transcript in chronological order. Each message has
+    /// <see cref="SessionMessage.ParentToolUseId"/> and <see cref="SessionMessage.ParentAgentId"/>
+    /// from the <c>agent-&lt;agentId&gt;.meta.json</c> file beside the transcript.
+    /// </summary>
+    /// <param name="sessionId">UUID of the parent session.</param>
+    /// <param name="agentId">Subagent id, as <see cref="ListSubagents"/> returns it.</param>
+    /// <param name="directory">Project directory. When null, all project directories are searched.</param>
+    /// <param name="limit">Maximum number of messages to return. Null or 0 returns all.</param>
+    /// <param name="offset">Number of messages to skip from the start.</param>
+    /// <returns>The messages. Empty when the session or the subagent is not found.</returns>
+    public static IReadOnlyList<SessionMessage> GetSubagentMessages(
+        string sessionId, string agentId, string? directory = null, int? limit = null, int offset = 0) =>
+        SubagentTranscripts.GetMessages(sessionId, agentId, directory, limit, offset);
+
+    /// <summary>
     /// Rename a session by appending a custom-title entry.
     /// </summary>
     public static void Rename(string sessionId, string title, string? directory = null) =>
@@ -81,6 +127,44 @@ public static class Sessions
     /// </summary>
     public static void Tag(string sessionId, string? tag, string? directory = null) =>
         SessionMutations.Tag(sessionId, tag, directory);
+
+    /// <summary>
+    /// Delete a session. This removes the session JSONL file and the sibling
+    /// <c>&lt;sessionId&gt;/</c> directory, which holds the subagent transcripts.
+    /// The delete is permanent. For a soft delete, tag the session and filter on the tag.
+    /// </summary>
+    /// <param name="sessionId">UUID of the session to delete.</param>
+    /// <param name="directory">Project directory. When null, all project directories are searched.</param>
+    /// <exception cref="ArgumentException"><paramref name="sessionId"/> is not a valid UUID.</exception>
+    /// <exception cref="FileNotFoundException">No non-empty session file was found.</exception>
+    public static void Delete(string sessionId, string? directory = null) =>
+        SessionMutations.Delete(sessionId, directory);
+
+    /// <summary>
+    /// Fork a session into a new session file in the same project directory. Each message
+    /// gets a new UUID and the <c>parentUuid</c> chain follows the new values. Each message
+    /// also gets <c>sessionId</c> set to the new session and a <c>forkedFrom</c> field that
+    /// names the source session and message. Sidechain and progress entries are not copied,
+    /// and file-history snapshots are not copied, so the fork has no undo history.
+    /// </summary>
+    /// <param name="sessionId">UUID of the source session.</param>
+    /// <param name="directory">Project directory. When null, all project directories are searched.</param>
+    /// <param name="upToMessageId">
+    /// Copy the transcript up to and including this message UUID. When null, copy all of it.
+    /// </param>
+    /// <param name="title">
+    /// Title of the fork. When null or blank, the source title with " (fork)" added.
+    /// </param>
+    /// <returns>The UUID of the new session.</returns>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="sessionId"/> or <paramref name="upToMessageId"/> is not a valid UUID,
+    /// or <paramref name="upToMessageId"/> is not in the transcript.
+    /// </exception>
+    /// <exception cref="FileNotFoundException">No non-empty session file was found.</exception>
+    /// <exception cref="InvalidOperationException">The session has no messages to fork.</exception>
+    public static ForkSessionResult Fork(
+        string sessionId, string? directory = null, string? upToMessageId = null, string? title = null) =>
+        SessionFork.Fork(sessionId, directory, upToMessageId, title);
 
     private static string? ReadSessionFile(string sessionId, string? directory)
     {
@@ -111,21 +195,16 @@ public static class Sessions
         return null;
     }
 
-    private static IReadOnlyList<SessionInfo> ListForProject(string directory, int? limit)
+    private static List<SessionInfo> ListForProject(string directory)
     {
         string canonical = SessionStorage.CanonicalizePath(directory);
         string? projectDir = SessionStorage.FindProjectDir(canonical);
         if (projectDir is null) return [];
 
-        var sessions = new List<SessionInfo>(SessionStorage.ReadSessionsFromDir(projectDir, canonical));
-        sessions.Sort((a, b) => b.LastModified.CompareTo(a.LastModified));
-
-        if (limit is > 0)
-            return sessions.GetRange(0, Math.Min(limit.Value, sessions.Count));
-        return sessions;
+        return [.. SessionStorage.ReadSessionsFromDir(projectDir, canonical)];
     }
 
-    private static IReadOnlyList<SessionInfo> ListAllSessions(int? limit)
+    private static List<SessionInfo> ListAllSessions()
     {
         string projectsDir = SessionStorage.GetProjectsDir();
         if (!Directory.Exists(projectsDir)) return [];
@@ -144,11 +223,6 @@ public static class Sessions
                 byId[s.SessionId] = s;
         }
 
-        var result = new List<SessionInfo>(byId.Values);
-        result.Sort((a, b) => b.LastModified.CompareTo(a.LastModified));
-
-        if (limit is > 0)
-            return result.GetRange(0, Math.Min(limit.Value, result.Count));
-        return result;
+        return [.. byId.Values];
     }
 }
