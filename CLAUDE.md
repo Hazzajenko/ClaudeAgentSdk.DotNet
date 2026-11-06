@@ -22,12 +22,12 @@ TUnit uses `--treenode-filter`, not `--filter`. Path format: `/{assembly}/{names
 
 A ruleset on `main` blocks direct pushes, so a release goes through a PR in two steps:
 
-1. Run `scripts/release.sh <major|minor|patch>` on an up-to-date `main`. It checks for a clean working tree, a new tag and a non-empty `[Unreleased]` section in CHANGELOG.md. It then stamps the version and date on a `release-<version>` branch, pushes the branch and opens a PR.
+1. Run `scripts/release.sh <major|minor|patch>` on an up-to-date `main`. It checks for a clean working tree, a new tag and changelog entries in the `[Unreleased]` section of CHANGELOG.md or in `changelog.d/`. It then stamps the version and date on a `release-<version>` branch, merges the `changelog.d/` fragments into the new version section, removes them, pushes the branch and opens a PR.
 2. Merge the PR. Then run `scripts/release.sh tag <version>`. It tags the merge commit and pushes the tag.
 
 The tag push starts `release.yml`, which publishes to NuGet through Trusted Publishing and makes the GitHub release. The script pushes the tag because a tag pushed with the workflow `GITHUB_TOKEN` does not start other workflows.
 
-Update CHANGELOG.md `[Unreleased]` section with each change.
+Each PR that a user of the package can see adds one fragment file to `changelog.d/`. A PR never edits CHANGELOG.md. `changelog.d/README.md` gives the file name and format.
 
 ## AOT Constraints
 

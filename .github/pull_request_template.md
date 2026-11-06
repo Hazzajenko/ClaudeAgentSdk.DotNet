@@ -14,7 +14,7 @@ Closes #
 
 ## Changelog
 
-<!-- The line added under [Unreleased] in CHANGELOG.md, or "None, internal." -->
+<!-- The content of the fragment file in changelog.d/, quoted as written, or "None, internal." -->
 
 ## Acceptance (from #)
 

@@ -6,7 +6,7 @@ How an agent opens a PR in this repo. Use the `gh` CLI. One PR per issue.
 
 - Branch from `main`. Name the branch `implement-<n>-<short-subject>`, for example `implement-12-raw-user-message`.
 - Write commits as `CLAUDE.md` says: Conventional Commits, one change per commit, `(#<n>)` at the end of each subject.
-- Add a line to the `[Unreleased]` section of `CHANGELOG.md` for each change that a user of the package can see. An internal change gets no line.
+- Add one fragment file to `changelog.d/` for the changes that a user of the package can see. `changelog.d/README.md` gives the file name and format. Never edit `CHANGELOG.md`, because each edit there makes the other open PRs conflict. An internal change gets no fragment.
 
 ## Body template
 
@@ -29,7 +29,7 @@ Closes #<n>.
 
 ## Changelog
 
-The line added under `[Unreleased]` in `CHANGELOG.md`, or "None, internal."
+The content of the fragment file in `changelog.d/`, quoted as written, or "None, internal."
 
 ## Acceptance (from #<n>)
 
