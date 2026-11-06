@@ -90,7 +90,7 @@ public class AgentSerializerTests
     [Arguments(AgentModel.Opus, "opus")]
     [Arguments(AgentModel.Haiku, "haiku")]
     [Arguments(AgentModel.Inherit, "inherit")]
-    public async Task Serialize_ModelEnum_MapsCorrectly(AgentModel model, string expected)
+    public async Task Serialize_ModelAlias_WritesAlias(string model, string expected)
     {
         var agents = new Dictionary<string, AgentDefinition>
         {
@@ -99,5 +99,17 @@ public class AgentSerializerTests
 
         string json = AgentSerializer.Serialize(agents);
         await Assert.That(json).Contains($"\"model\":\"{expected}\"");
+    }
+
+    [Test]
+    public async Task Serialize_FullModelId_WritesIdAsIs()
+    {
+        var agents = new Dictionary<string, AgentDefinition>
+        {
+            ["a"] = new AgentDefinition { Description = "D", Prompt = "P", Model = "claude-opus-4-5-20251101" }
+        };
+
+        string json = AgentSerializer.Serialize(agents);
+        await Assert.That(json).Contains("\"model\":\"claude-opus-4-5-20251101\"");
     }
 }

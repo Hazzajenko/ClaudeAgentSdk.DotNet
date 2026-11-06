@@ -46,17 +46,8 @@ internal static class AgentSerializer
             w.WriteEndArray();
         }
 
-        if (agent.Model is { } model)
-        {
-            w.WriteString("model", model switch
-            {
-                AgentModel.Sonnet => "sonnet",
-                AgentModel.Opus => "opus",
-                AgentModel.Haiku => "haiku",
-                AgentModel.Inherit => "inherit",
-                _ => "inherit"
-            });
-        }
+        if (agent.Model is not null)
+            w.WriteString("model", agent.Model);
 
         if (agent.Skills is { Count: > 0 })
         {
