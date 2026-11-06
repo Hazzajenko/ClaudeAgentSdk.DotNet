@@ -82,6 +82,18 @@ public static class Sessions
     public static void Tag(string sessionId, string? tag, string? directory = null) =>
         SessionMutations.Tag(sessionId, tag, directory);
 
+    /// <summary>
+    /// Delete a session. This removes the session JSONL file and the sibling
+    /// <c>&lt;sessionId&gt;/</c> directory, which holds the subagent transcripts.
+    /// The delete is permanent. For a soft delete, tag the session and filter on the tag.
+    /// </summary>
+    /// <param name="sessionId">UUID of the session to delete.</param>
+    /// <param name="directory">Project directory. When null, all project directories are searched.</param>
+    /// <exception cref="ArgumentException"><paramref name="sessionId"/> is not a valid UUID.</exception>
+    /// <exception cref="FileNotFoundException">No non-empty session file was found.</exception>
+    public static void Delete(string sessionId, string? directory = null) =>
+        SessionMutations.Delete(sessionId, directory);
+
     private static string? ReadSessionFile(string sessionId, string? directory)
     {
         string fileName = $"{sessionId}.jsonl";
