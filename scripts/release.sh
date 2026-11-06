@@ -3,7 +3,8 @@ set -euo pipefail
 
 # Releases go through a PR because the ruleset on main blocks direct pushes.
 #
-#   1. release.sh <bump>         stamps CHANGELOG.md on a release branch and opens a PR
+#   1. release.sh <bump>         stamps CHANGELOG.md on a release branch, merges and
+#                                removes the changelog.d fragments, and opens a PR
 #   2. release.sh tag <version>  after the PR merges, tags the merge commit and pushes the tag
 #
 # The tag push starts .github/workflows/release.yml, which publishes to NuGet.
@@ -35,7 +36,7 @@ rollback_release_pr() {
   if [[ $status -ne 0 && -n "$ROLLBACK_BRANCH" ]]; then
     echo "Rolling back $ROLLBACK_BRANCH" >&2
     # Restore from HEAD, not the index, so a staged stamp is also undone.
-    git checkout --quiet HEAD -- CHANGELOG.md 2>/dev/null || true
+    git checkout --quiet HEAD -- CHANGELOG.md changelog.d 2>/dev/null || true
     git switch --quiet main || true
     git branch --quiet -D "$ROLLBACK_BRANCH" 2>/dev/null || true
     if [[ $ROLLBACK_PUSHED -eq 1 ]]; then
@@ -64,6 +65,80 @@ require_tag_absent() {
   if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
     fail "tag $tag already exists on origin"
   fi
+}
+
+# Keep a Changelog headings, in the order the release section writes them.
+CHANGELOG_HEADINGS="Added Changed Deprecated Removed Fixed Security"
+
+# Prints the body of the new version section. It takes the lines of the
+# [Unreleased] section of CHANGELOG.md and of each fragment file given as an
+# argument, and groups them under one heading of each kind. A heading that is
+# not in CHANGELOG_HEADINGS, or a line before the first heading, fails.
+merged_section() {
+  awk -v order="$CHANGELOG_HEADINGS" '
+    BEGIN {
+      n = split(order, names, " ")
+      for (i = 1; i <= n; i++) known[names[i]] = 1
+    }
+    FNR == 1 { heading = ""; in_unreleased = 0 }
+    { sub(/\r$/, "") }
+    NR == FNR {
+      if ($0 ~ /^## \[Unreleased\]/) { in_unreleased = 1; next }
+      if ($0 ~ /^## \[/) { in_unreleased = 0 }
+      if (!in_unreleased) next
+    }
+    /^### / {
+      heading = substr($0, 5)
+      sub(/[ \t]+$/, "", heading)
+      if (!(heading in known)) {
+        printf "Error: unknown heading \"### %s\" in %s\n", heading, FILENAME > "/dev/stderr"
+        failed = 1
+        exit 1
+      }
+      next
+    }
+    /^[ \t]*$/ { next }
+    {
+      if (heading == "") {
+        printf "Error: line before the first heading in %s\n", FILENAME > "/dev/stderr"
+        failed = 1
+        exit 1
+      }
+      body[heading] = body[heading] $0 "\n"
+    }
+    END {
+      if (failed) exit 1
+      first = 1
+      for (i = 1; i <= n; i++) {
+        if (!(names[i] in body)) continue
+        if (!first) printf "\n"
+        printf "### %s\n\n%s", names[i], body[names[i]]
+        first = 0
+      }
+    }
+  ' CHANGELOG.md "$@"
+}
+
+# Empties the [Unreleased] section of CHANGELOG.md and puts a new version
+# section with the given body below it.
+stamp_changelog() {
+  local version="$1" today="$2" section="$3" tmp
+  tmp=$(mktemp)
+  SECTION="$section" awk -v header="## [$version] - $today" '
+    /^## \[Unreleased\]/ {
+      print
+      print ""
+      print header
+      print ""
+      print ENVIRON["SECTION"]
+      print ""
+      skipping = 1
+      next
+    }
+    skipping && /^## \[/ { skipping = 0 }
+    !skipping
+  ' CHANGELOG.md > "$tmp"
+  mv "$tmp" CHANGELOG.md
 }
 
 open_release_pr() {
@@ -120,9 +195,17 @@ open_release_pr() {
 
   local unreleased
   unreleased=$(awk '/^## \[Unreleased\]/{flag=1; next} /^## \[/{flag=0} flag' CHANGELOG.md | grep -v '^$' || true)
-  if [[ -z "$unreleased" ]]; then
-    fail "[Unreleased] section in CHANGELOG.md is empty"
+  local fragments=() file
+  for file in changelog.d/*.md; do
+    [[ -f "$file" && "$file" != "changelog.d/README.md" ]] && fragments+=("$file")
+  done
+  if [[ -z "$unreleased" && ${#fragments[@]} -eq 0 ]]; then
+    fail "[Unreleased] section in CHANGELOG.md is empty and changelog.d has no fragments"
   fi
+
+  # Merge before the branch exists, so a bad fragment stops the run early.
+  local section
+  section=$(merged_section "${fragments[@]}") || fail "could not merge the changelog fragments"
 
   trap rollback_release_pr EXIT
   git switch --quiet -c "$branch"
@@ -130,9 +213,12 @@ open_release_pr() {
 
   local today
   today=$(date +%Y-%m-%d)
-  sed -i "s/^## \[Unreleased\]/## [Unreleased]\n\n## [$version] - $today/" CHANGELOG.md
+  stamp_changelog "$version" "$today" "$section"
 
   git add CHANGELOG.md
+  if [[ ${#fragments[@]} -gt 0 ]]; then
+    git rm --quiet -- "${fragments[@]}"
+  fi
   git commit --quiet -m "chore(release): $full_version"
   git push --quiet -u origin "$branch"
   # Set only after the push, so a rejected push never deletes a branch
@@ -141,13 +227,13 @@ open_release_pr() {
 
   BODY_FILE=$(mktemp)
   {
-    echo "Stamps \`CHANGELOG.md\` for $tag."
+    echo "Stamps \`CHANGELOG.md\` for $tag. Merges ${#fragments[@]} fragments from \`changelog.d\` and removes them."
     echo ""
     echo "After merge, run \`scripts/release.sh tag $full_version\`. The tag push starts the NuGet publish."
     echo ""
     echo "## Changelog"
     echo ""
-    echo "$unreleased"
+    echo "$section"
   } > "$BODY_FILE"
 
   gh pr create --base main --head "$branch" --title "chore(release): $full_version" --body-file "$BODY_FILE"
