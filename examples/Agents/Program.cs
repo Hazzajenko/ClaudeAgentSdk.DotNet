@@ -33,7 +33,7 @@ async Task CodeReviewerExample()
     {
         await foreach (var message in Claude.QueryAsync(
             "Use the code-reviewer agent to summarize src/ClaudeAgentSdk/Claude.cs in 2 sentences",
-            options, cts.Token))
+            options, cancellationToken: cts.Token))
         {
             switch (message)
             {
@@ -81,7 +81,7 @@ async Task DocumentationWriterExample()
     {
         await foreach (var message in Claude.QueryAsync(
             "Use the doc-writer agent to explain what AgentDefinition is in 1 sentence",
-            options, cts.Token))
+            options, cancellationToken: cts.Token))
         {
             switch (message)
             {
@@ -135,7 +135,7 @@ async Task MultipleAgentsExample()
     {
         await foreach (var message in Claude.QueryAsync(
             "Use the analyzer agent to find all C# files in the examples/ directory",
-            options, cts.Token))
+            options, cancellationToken: cts.Token))
         {
             switch (message)
             {

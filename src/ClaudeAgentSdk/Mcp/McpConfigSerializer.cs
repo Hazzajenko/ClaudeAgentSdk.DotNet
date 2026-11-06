@@ -29,7 +29,7 @@ internal static class McpConfigSerializer
         return Encoding.UTF8.GetString(stream.ToArray());
     }
 
-    private static void WriteServerConfig(Utf8JsonWriter w, McpServerConfig config)
+    internal static void WriteServerConfig(Utf8JsonWriter w, McpServerConfig config)
     {
         switch (config)
         {
