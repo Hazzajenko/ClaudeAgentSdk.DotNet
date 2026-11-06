@@ -7,6 +7,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- A `system` frame with subtype `task_updated` now yields `TaskUpdatedMessage` with `TaskId`, `Patch`, `Status`, `SessionId`, `Uuid` and `IsTerminal`. Before, it was a generic `SystemMessage`. A task stopped with `TaskStop` can report its end only in this frame. `TaskStatuses.Terminal` and `TaskStatuses.IsTerminal` give the 4 terminal statuses: completed, failed, stopped and killed.
+
 ### Security
 
 - On Windows, a `.bat` or `.cmd` path from `CliPath` or `CLAUDE_CLI_PATH` now throws `CliConnectionException` before any process starts. Windows runs batch files through cmd.exe, which can run commands injected through CLI arguments. Use the native `claude.exe` instead.
