@@ -138,6 +138,15 @@ var options = new ClaudeClientOptions
 };
 ```
 
+`Skills` turns on skills without a `Skill` entry in `AllowedTools`. `new SkillsConfigAll()` turns on every skill. `new SkillsConfigList(["pdf", "my-plugin:review"])` turns on only the named skills. A name with a comma, a parenthesis, a control character or a wildcard throws `ArgumentException` at connect, because the CLI splits `--allowedTools` on those characters.
+
+```csharp
+var options = new ClaudeClientOptions
+{
+    Skills = new SkillsConfigList(["pdf"]),
+};
+```
+
 ## Custom Tools (In-Process MCP Servers)
 
 Define tools that run inside your application with zero IPC overhead. No subprocess management, no external server processes.

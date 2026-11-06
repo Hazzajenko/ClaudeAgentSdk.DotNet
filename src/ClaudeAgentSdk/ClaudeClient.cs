@@ -297,6 +297,9 @@ public sealed class ClaudeClient : IAsyncDisposable
 
     private async Task ConnectAsync(CancellationToken cancellationToken)
     {
+        // An injected transport skips CliArgsBuilder, so check the skill names here too.
+        SkillNameValidator.Validate(_options.Skills);
+
         if (_injectedTransport is not null)
         {
             _transport = _injectedTransport;
@@ -406,6 +409,16 @@ public sealed class ClaudeClient : IAsyncDisposable
             if (_options.Agents is { Count: > 0 })
             {
                 AgentSerializer.WriteAgentsProperty(w, _options.Agents);
+            }
+
+            if (_options.Skills is SkillsConfigList skillsList)
+            {
+                w.WriteStartArray("skills");
+                foreach (string name in skillsList.Names)
+                {
+                    w.WriteStringValue(name);
+                }
+                w.WriteEndArray();
             }
 
             w.WriteEndObject();
