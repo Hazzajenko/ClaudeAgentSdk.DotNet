@@ -12,6 +12,8 @@ namespace ClaudeAgentSdk.Json;
 [JsonSerializable(typeof(ThinkingBlockWire))]
 [JsonSerializable(typeof(ToolUseBlockWire))]
 [JsonSerializable(typeof(ToolResultBlockWire))]
+[JsonSerializable(typeof(ServerToolUseBlockWire))]
+[JsonSerializable(typeof(ServerToolResultBlockWire))]
 [JsonSerializable(typeof(List<JsonElement>))]
 [JsonSerializable(typeof(AssistantMessageWire))]
 [JsonSerializable(typeof(UserMessageWire))]

@@ -31,3 +31,16 @@ internal sealed record ToolResultBlockWire : ContentBlockWire
     public JsonElement? Content { get; init; }
     public bool? IsError { get; init; }
 }
+
+internal sealed record ServerToolUseBlockWire : ContentBlockWire
+{
+    public required string Id { get; init; }
+    public required string Name { get; init; }
+    public required JsonElement Input { get; init; }
+}
+
+internal sealed record ServerToolResultBlockWire : ContentBlockWire
+{
+    public required string ToolUseId { get; init; }
+    public required JsonElement Content { get; init; }
+}

@@ -7,6 +7,18 @@ namespace ClaudeAgentSdk.Json;
 
 internal static class WireMapper
 {
+    // Server tool result types from the Messages API. Each has tool_use_id and content.
+    private static readonly HashSet<string> ServerToolResultTypes =
+    [
+        "advisor_tool_result",
+        "web_search_tool_result",
+        "web_fetch_tool_result",
+        "code_execution_tool_result",
+        "bash_code_execution_tool_result",
+        "text_editor_code_execution_tool_result",
+        "tool_search_tool_result",
+    ];
+
     /// <summary>
     /// Maps one element of a "content" array. Returns null for an unknown "type",
     /// so a new block type from the CLI does not end the stream.
@@ -38,6 +50,12 @@ internal static class WireMapper
             case "tool_result":
                 ToolResultBlockWire toolResult = Read(element, ClaudeJsonContext.Default.ToolResultBlockWire);
                 return new ToolResultBlock { ToolUseId = toolResult.ToolUseId, Content = toolResult.Content, IsError = toolResult.IsError };
+            case "server_tool_use":
+                ServerToolUseBlockWire serverUse = Read(element, ClaudeJsonContext.Default.ServerToolUseBlockWire);
+                return new ServerToolUseBlock { Id = serverUse.Id, Name = serverUse.Name, Input = serverUse.Input };
+            case var _ when ServerToolResultTypes.Contains(type):
+                ServerToolResultBlockWire serverResult = Read(element, ClaudeJsonContext.Default.ServerToolResultBlockWire);
+                return new ServerToolResultBlock { ToolUseId = serverResult.ToolUseId, Content = serverResult.Content };
             default:
                 return null;
         }

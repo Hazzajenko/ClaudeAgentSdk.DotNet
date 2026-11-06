@@ -30,6 +30,68 @@ public class ContentBlockParsingTests
     }
 
     [Test]
+    public async Task AssistantMessage_ServerToolUse_MapsToServerToolUseBlock()
+    {
+        const string json = """
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "id": "srvtoolu_01",
+                            "type": "server_tool_use",
+                            "name": "web_search",
+                            "input": {"query": "dotnet"}
+                        }
+                    ],
+                    "model": "m"
+                }
+            }
+            """;
+
+        var assistant = (AssistantMessage)ClaudeJsonOptions.DeserializeMessage(json)!;
+
+        await Assert.That(assistant.Content).Count().IsEqualTo(1);
+        await Assert.That(assistant.Content[0]).IsTypeOf<ServerToolUseBlock>();
+        var block = (ServerToolUseBlock)assistant.Content[0];
+        await Assert.That(block.Id).IsEqualTo("srvtoolu_01");
+        await Assert.That(block.Name).IsEqualTo("web_search");
+        await Assert.That(block.Input.GetProperty("query").GetString()).IsEqualTo("dotnet");
+    }
+
+    [Test]
+    [Arguments("advisor_tool_result")]
+    [Arguments("web_search_tool_result")]
+    [Arguments("web_fetch_tool_result")]
+    [Arguments("code_execution_tool_result")]
+    public async Task AssistantMessage_ServerToolResult_MapsToServerToolResultBlock(string type)
+    {
+        string json = $$"""
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "type": "{{type}}",
+                            "tool_use_id": "srvtoolu_01",
+                            "content": {"type": "advice", "text": "ok"}
+                        }
+                    ],
+                    "model": "m"
+                }
+            }
+            """;
+
+        var assistant = (AssistantMessage)ClaudeJsonOptions.DeserializeMessage(json)!;
+
+        await Assert.That(assistant.Content).Count().IsEqualTo(1);
+        await Assert.That(assistant.Content[0]).IsTypeOf<ServerToolResultBlock>();
+        var block = (ServerToolResultBlock)assistant.Content[0];
+        await Assert.That(block.ToolUseId).IsEqualTo("srvtoolu_01");
+        await Assert.That(block.Content.GetProperty("text").GetString()).IsEqualTo("ok");
+    }
+
+    [Test]
     public async Task AssistantMessage_KnownBlocks_StillMap()
     {
         const string json = """
