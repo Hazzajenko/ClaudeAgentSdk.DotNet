@@ -110,6 +110,31 @@ public class SdkMcpRequestHandlerTests
     }
 
     [Test]
+    public async Task ToolsList_WithMaxResultSizeChars_WritesAnthropicMeta()
+    {
+        var tool = CreateAddTool() with { MaxResultSizeChars = 500_000 };
+        var handler = new SdkMcpRequestHandler(CreateServerWithTools(tool));
+
+        using var msg = JsonDocument.Parse("""{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}""");
+        var response = await handler.HandleAsync(msg.RootElement, CancellationToken.None);
+
+        var meta = response.GetProperty("result").GetProperty("tools")[0].GetProperty("_meta");
+        await Assert.That(meta.GetProperty("anthropic/maxResultSizeChars").GetInt32()).IsEqualTo(500_000);
+    }
+
+    [Test]
+    public async Task ToolsList_WithoutMaxResultSizeChars_OmitsMeta()
+    {
+        var handler = new SdkMcpRequestHandler(CreateServerWithTools(CreateAddTool()));
+
+        using var msg = JsonDocument.Parse("""{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}""");
+        var response = await handler.HandleAsync(msg.RootElement, CancellationToken.None);
+
+        var tool = response.GetProperty("result").GetProperty("tools")[0];
+        await Assert.That(tool.TryGetProperty("_meta", out _)).IsFalse();
+    }
+
+    [Test]
     public async Task ToolsCall_InvokesHandlerAndReturnsResult()
     {
         var handler = new SdkMcpRequestHandler(CreateServerWithTools(CreateAddTool()));
@@ -127,6 +152,26 @@ public class SdkMcpRequestHandlerTests
 
         await Assert.That(result.TryGetProperty("isError", out _)).IsFalse();
         await Assert.That(result.TryGetProperty("is_error", out _)).IsFalse();
+    }
+
+    [Test]
+    public async Task ToolsCall_ImageResult_ReturnsImageContent()
+    {
+        var tool = SdkMcpTool.Create("shot", "Screenshot",
+            McpJsonSchema.Object(),
+            (args, ct) => McpToolResult.Image([1, 2, 3], "image/jpeg"));
+
+        var handler = new SdkMcpRequestHandler(CreateServerWithTools(tool));
+
+        using var msg = JsonDocument.Parse("""
+            {"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"shot","arguments":{}}}
+            """);
+        var response = await handler.HandleAsync(msg.RootElement, CancellationToken.None);
+
+        var content = response.GetProperty("result").GetProperty("content")[0];
+        await Assert.That(content.GetProperty("type").GetString()).IsEqualTo("image");
+        await Assert.That(content.GetProperty("data").GetString()).IsEqualTo("AQID");
+        await Assert.That(content.GetProperty("mimeType").GetString()).IsEqualTo("image/jpeg");
     }
 
     [Test]
@@ -225,6 +270,21 @@ public class SdkMcpRequestHandlerTests
     }
 
     [Test]
+    public async Task Ping_ReturnsEmptyResultWithId()
+    {
+        var handler = new SdkMcpRequestHandler(CreateServerWithTools());
+
+        using var msg = JsonDocument.Parse("""{"jsonrpc":"2.0","id":"p1","method":"ping"}""");
+        var response = await handler.HandleAsync(msg.RootElement, CancellationToken.None);
+
+        await Assert.That(response.GetProperty("id").GetString()).IsEqualTo("p1");
+        await Assert.That(response.TryGetProperty("error", out _)).IsFalse();
+        var result = response.GetProperty("result");
+        await Assert.That(result.ValueKind).IsEqualTo(JsonValueKind.Object);
+        await Assert.That(result.EnumerateObject().Any()).IsFalse();
+    }
+
+    [Test]
     public async Task UnknownMethod_ReturnsMethodNotFoundError()
     {
         var handler = new SdkMcpRequestHandler(CreateServerWithTools());
@@ -241,13 +301,16 @@ public class SdkMcpRequestHandlerTests
     public async Task ToolsCall_PassesCancellationToken()
     {
         using var cts = new CancellationTokenSource();
-        CancellationToken? received = null;
+        bool? cancelledBefore = null;
+        bool? cancelledAfter = null;
 
         var tool = SdkMcpTool.Create("check-ct", "Check CT",
             McpJsonSchema.Object(),
             async (args, ct) =>
             {
-                received = ct;
+                cancelledBefore = ct.IsCancellationRequested;
+                await cts.CancelAsync();
+                cancelledAfter = ct.IsCancellationRequested;
                 return McpToolResult.Text("ok");
             });
 
@@ -258,8 +321,111 @@ public class SdkMcpRequestHandlerTests
             """);
         await handler.HandleAsync(msg.RootElement, cts.Token);
 
-        await Assert.That(received).IsNotNull();
-        await Assert.That(received!.Value).IsEqualTo(cts.Token);
+        await Assert.That(cancelledBefore).IsFalse();
+        await Assert.That(cancelledAfter).IsTrue();
+    }
+
+    [Test]
+    [Arguments("8", "8")]
+    [Arguments("\"call-8\"", "\"call-8\"")]
+    public async Task NotificationsCancelled_CancelsRunningHandlerToken(string callId, string requestId)
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var tool = SdkMcpTool.Create("wait", "Wait until cancelled",
+            McpJsonSchema.Object(),
+            async (args, ct) =>
+            {
+                started.SetResult();
+                await Task.Delay(Timeout.Infinite, ct);
+                return McpToolResult.Text("unreachable");
+            });
+
+        var handler = new SdkMcpRequestHandler(CreateServerWithTools(tool));
+
+        using var call = JsonDocument.Parse(
+            """{"jsonrpc":"2.0","id":""" + callId
+            + ""","method":"tools/call","params":{"name":"wait","arguments":{}}}""");
+        Task<JsonElement> callTask = handler.HandleAsync(call.RootElement, CancellationToken.None);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        using var cancel = JsonDocument.Parse($$$"""
+            {"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":{{{requestId}}},"reason":"interrupt"}}
+            """);
+        var ack = await handler.HandleAsync(cancel.RootElement, CancellationToken.None);
+        var response = await callTask.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await Assert.That(ack.TryGetProperty("result", out _)).IsTrue();
+        await Assert.That(ack.TryGetProperty("id", out _)).IsFalse();
+        await Assert.That(response.GetProperty("id").GetRawText()).IsEqualTo(callId);
+        await Assert.That(response.TryGetProperty("result", out _)).IsFalse();
+        var error = response.GetProperty("error");
+        await Assert.That(error.GetProperty("code").GetInt32()).IsEqualTo(-32800);
+        await Assert.That(error.GetProperty("message").GetString()).IsEqualTo("Request cancelled");
+    }
+
+    [Test]
+    public async Task NotificationsCancelled_HandlerReturnsAnyway_ReturnsCancelledError()
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var tool = SdkMcpTool.Create("stubborn", "Ignores its token",
+            McpJsonSchema.Object(),
+            async (args, ct) =>
+            {
+                started.SetResult();
+                await release.Task;
+                return McpToolResult.Text("late result");
+            });
+
+        var handler = new SdkMcpRequestHandler(CreateServerWithTools(tool));
+
+        using var call = JsonDocument.Parse("""
+            {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"stubborn","arguments":{}}}
+            """);
+        Task<JsonElement> callTask = handler.HandleAsync(call.RootElement, CancellationToken.None);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        using var cancel = JsonDocument.Parse("""
+            {"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":3}}
+            """);
+        await handler.HandleAsync(cancel.RootElement, CancellationToken.None);
+        release.SetResult();
+        var response = await callTask.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await Assert.That(response.GetProperty("error").GetProperty("code").GetInt32()).IsEqualTo(-32800);
+    }
+
+    [Test]
+    public async Task NotificationsCancelled_UnknownRequest_ReturnsEmptyResult()
+    {
+        var handler = new SdkMcpRequestHandler(CreateServerWithTools());
+
+        using var cancel = JsonDocument.Parse("""
+            {"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":99}}
+            """);
+        var ack = await handler.HandleAsync(cancel.RootElement, CancellationToken.None);
+
+        await Assert.That(ack.TryGetProperty("error", out _)).IsFalse();
+        await Assert.That(ack.TryGetProperty("result", out _)).IsTrue();
+    }
+
+    [Test]
+    public async Task NotificationsCancelled_AfterCallEnds_DoesNotThrow()
+    {
+        var handler = new SdkMcpRequestHandler(CreateServerWithTools(CreateAddTool()));
+
+        using var call = JsonDocument.Parse("""
+            {"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"add","arguments":{"a":1,"b":2}}}
+            """);
+        var response = await handler.HandleAsync(call.RootElement, CancellationToken.None);
+
+        using var cancel = JsonDocument.Parse("""
+            {"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":4}}
+            """);
+        var ack = await handler.HandleAsync(cancel.RootElement, CancellationToken.None);
+
+        await Assert.That(response.GetProperty("result").GetProperty("content")[0].GetProperty("text").GetString()).IsEqualTo("3");
+        await Assert.That(ack.TryGetProperty("result", out _)).IsTrue();
     }
 
     [Test]

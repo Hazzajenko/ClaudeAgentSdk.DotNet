@@ -11,6 +11,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - `ConversationResetMessage` with `NewConversationId`, `Uuid` and `SessionId`. The CLI sends a `conversation_reset` frame after `/clear`.
 - `McpToolAnnotations.Title` and `McpToolAnnotations.Idempotent`. An SDK MCP server writes them in `tools/list` as `title` and `idempotentHint`. The CLI `mcp_status` response has no such values, so `GetMcpStatusAsync` leaves them null.
+- `McpToolResult.Image` and `McpToolResult.ResourceLink` for SDK MCP tool results. An image goes to the CLI as MCP `image` content. A resource link goes as text with its name, URI and description, because the CLI shows tool results as text.
+- `SdkMcpTool.MaxResultSizeChars` sets the size in characters up to which Claude Code keeps the tool result inline. A larger result goes to a file and the model sees a preview. An SDK MCP server sends it in `tools/list` as `_meta: {"anthropic/maxResultSizeChars": N}`.
 
 ### Fixed
 
@@ -19,6 +21,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - SDK MCP tool annotations now go to the CLI in `tools/list` as `readOnlyHint`, `destructiveHint` and `openWorldHint`, the MCP names. Before, the SDK wrote `readOnly`, `destructive` and `openWorld`, which MCP clients drop. `ClaudeClient.GetMcpStatusAsync` still reads the `readOnly`, `destructive` and `openWorld` names, because the CLI `mcp_status` response uses them.
 - An unknown tool or an exception from an SDK MCP tool handler now comes back as an `isError` tool result with the message, which the model can read. Before, it came back as a JSON-RPC error. A handler that throws `OperationCanceledException` after its token is cancelled still gets a JSON-RPC error.
 - An SDK MCP server now echoes a JSON-RPC `id` back unchanged. Before, a string `id` threw before the request was handled.
+- An SDK MCP server now cancels the token of a running tool handler when the CLI sends `notifications/cancelled` for its call, so an interrupt can stop the tool. The cancelled call gets JSON-RPC error `-32800`, also when the handler ignores the token and returns a result.
+- An SDK MCP server now answers `ping` with an empty result. Before, it answered with a method-not-found error.
 
 ### Security
 

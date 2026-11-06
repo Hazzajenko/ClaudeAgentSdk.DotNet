@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
 
@@ -8,8 +9,14 @@ namespace ClaudeAgentSdk.Mcp.Sdk;
 /// </summary>
 internal sealed class SdkMcpRequestHandler
 {
+    private const int RequestCancelledCode = -32800;
+
     private readonly McpSdkServerConfig _config;
     private readonly Dictionary<string, SdkMcpTool> _toolMap;
+
+    // Running tools/call requests, keyed by the raw JSON text of the request id,
+    // so that notifications/cancelled can cancel the handler token.
+    private readonly ConcurrentDictionary<string, CancellationTokenSource> _runningCalls = new();
 
     public SdkMcpRequestHandler(McpSdkServerConfig config)
     {
@@ -31,7 +38,9 @@ internal sealed class SdkMcpRequestHandler
                 "initialize" => BuildInitializeResponse(id),
                 "tools/list" => BuildToolsListResponse(id),
                 "tools/call" => await HandleToolCallAsync(message, id, cancellationToken),
+                "ping" => BuildEmptyResult(id),
                 "notifications/initialized" => BuildEmptyResult(id),
+                "notifications/cancelled" => HandleCancelled(message),
                 _ => BuildMethodNotFoundError(id, method ?? "null")
             };
         }
@@ -89,6 +98,15 @@ internal sealed class SdkMcpRequestHandler
                     WriteAnnotations(w, annotations);
                 }
 
+                // MCP clients drop annotation fields they do not know, so Claude Code reads
+                // its own hints from namespaced _meta keys.
+                if (tool.MaxResultSizeChars is { } maxResultSizeChars)
+                {
+                    w.WriteStartObject("_meta");
+                    w.WriteNumber("anthropic/maxResultSizeChars", maxResultSizeChars);
+                    w.WriteEndObject();
+                }
+
                 w.WriteEndObject();
             }
 
@@ -140,17 +158,63 @@ internal sealed class SdkMcpRequestHandler
             return BuildToolResult(id, McpToolResult.Error($"Tool '{toolName}' not found"));
         }
 
+        using var callCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        string? callKey = id?.GetRawText();
+        if (callKey is not null)
+        {
+            _runningCalls[callKey] = callCts;
+        }
+
         McpToolResult result;
         try
         {
-            result = await tool.Handler(arguments, cancellationToken);
+            result = await tool.Handler(arguments, callCts.Token);
         }
-        catch (Exception ex) when (!(ex is OperationCanceledException && cancellationToken.IsCancellationRequested))
+        catch (Exception ex) when (!(ex is OperationCanceledException && callCts.IsCancellationRequested))
         {
             result = McpToolResult.Error(ex.Message);
         }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Only notifications/cancelled can cancel callCts while the outer token is live.
+            return BuildError(id, RequestCancelledCode, "Request cancelled");
+        }
+        finally
+        {
+            if (callKey is not null)
+            {
+                _runningCalls.TryRemove(new KeyValuePair<string, CancellationTokenSource>(callKey, callCts));
+            }
+        }
+
+        // A cancelled call must not produce a result, even when the handler ignored its token.
+        if (callCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        {
+            return BuildError(id, RequestCancelledCode, "Request cancelled");
+        }
 
         return BuildToolResult(id, result);
+    }
+
+    private JsonElement HandleCancelled(JsonElement message)
+    {
+        if (message.TryGetProperty("params", out var p)
+            && p.ValueKind == JsonValueKind.Object
+            && p.TryGetProperty("requestId", out var requestId)
+            && _runningCalls.TryGetValue(requestId.GetRawText(), out var callCts))
+        {
+            try
+            {
+                callCts.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // The call ended between the lookup and the cancel.
+            }
+        }
+
+        // A notification gets no JSON-RPC reply, but the control request that carried it needs an ack.
+        return BuildEmptyResult(null);
     }
 
     private static JsonElement BuildToolResult(JsonElement? id, McpToolResult result)
@@ -190,24 +254,13 @@ internal sealed class SdkMcpRequestHandler
         return ParseElement(stream);
     }
 
-    private static JsonElement BuildMethodNotFoundError(JsonElement? id, string method)
-    {
-        using var stream = new MemoryStream();
-        using (var w = new Utf8JsonWriter(stream))
-        {
-            w.WriteStartObject();
-            w.WriteString("jsonrpc", "2.0");
-            WriteId(w, id);
-            w.WriteStartObject("error");
-            w.WriteNumber("code", -32601);
-            w.WriteString("message", $"Method '{method}' not found");
-            w.WriteEndObject();
-            w.WriteEndObject();
-        }
-        return ParseElement(stream);
-    }
+    private static JsonElement BuildMethodNotFoundError(JsonElement? id, string method) =>
+        BuildError(id, -32601, $"Method '{method}' not found");
 
-    private static JsonElement BuildInternalError(JsonElement? id, string message)
+    private static JsonElement BuildInternalError(JsonElement? id, string message) =>
+        BuildError(id, -32603, message);
+
+    private static JsonElement BuildError(JsonElement? id, int code, string message)
     {
         using var stream = new MemoryStream();
         using (var w = new Utf8JsonWriter(stream))
@@ -216,7 +269,7 @@ internal sealed class SdkMcpRequestHandler
             w.WriteString("jsonrpc", "2.0");
             WriteId(w, id);
             w.WriteStartObject("error");
-            w.WriteNumber("code", -32603);
+            w.WriteNumber("code", code);
             w.WriteString("message", message);
             w.WriteEndObject();
             w.WriteEndObject();
