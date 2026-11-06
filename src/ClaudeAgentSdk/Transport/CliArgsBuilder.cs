@@ -169,22 +169,35 @@ internal static class CliArgsBuilder
         }
 
         // Thinking config takes precedence over MaxThinkingTokens
-        int? resolvedThinkingTokens = options.MaxThinkingTokens;
-        if (options.Thinking is not null)
+        int? resolvedThinkingTokens = options.Thinking is null ? options.MaxThinkingTokens : null;
+        ThinkingDisplay? thinkingDisplay = null;
+        switch (options.Thinking)
         {
-            resolvedThinkingTokens = options.Thinking switch
-            {
-                ThinkingConfigAdaptive => 32_000,
-                ThinkingConfigEnabled e => e.BudgetTokens,
-                ThinkingConfigDisabled => 0,
-                _ => resolvedThinkingTokens
-            };
+            case ThinkingConfigAdaptive a:
+                args.Add("--thinking");
+                args.Add("adaptive");
+                thinkingDisplay = a.Display;
+                break;
+            case ThinkingConfigEnabled e:
+                resolvedThinkingTokens = e.BudgetTokens;
+                thinkingDisplay = e.Display;
+                break;
+            case ThinkingConfigDisabled:
+                args.Add("--thinking");
+                args.Add("disabled");
+                break;
         }
 
         if (resolvedThinkingTokens is not null)
         {
             args.Add("--max-thinking-tokens");
             args.Add(resolvedThinkingTokens.Value.ToString());
+        }
+
+        if (thinkingDisplay is not null)
+        {
+            args.Add("--thinking-display");
+            args.Add(thinkingDisplay == ThinkingDisplay.Omitted ? "omitted" : "summarized");
         }
 
         if (options.PermissionMode != PermissionMode.Default)

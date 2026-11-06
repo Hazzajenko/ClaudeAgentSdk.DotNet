@@ -14,6 +14,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `Resume` now goes to the CLI as one `--resume=<value>` token. Before, a value such as `--permission-mode=bypassPermissions` became its own CLI flag. On Windows, a `Resume` value with `& | < > ^ % ! "`, CR or LF throws `ArgumentException`.
 - An `ExtraArgs` value that starts with `-` now goes to the CLI as one `--<flag>=<value>` token, so the CLI cannot read the value as its own flag.
 
+### Added
+
+- `Display` on `ThinkingConfigAdaptive` and `ThinkingConfigEnabled` sends `--thinking-display summarized` or `--thinking-display omitted`. The new `ThinkingDisplay` enum has the two values.
+
+### Changed
+
+- `ThinkingConfigAdaptive` now sends `--thinking adaptive` and `ThinkingConfigDisabled` now sends `--thinking disabled`. Before, they sent `--max-thinking-tokens 32000` and `--max-thinking-tokens 0`.
+
 ## [0.2.0] - 2026-11-04
 
 ### Added
