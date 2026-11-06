@@ -592,4 +592,31 @@ public class ControlProtocolHandlerTests
 
         await Assert.ThrowsAsync<OperationCanceledException>(async () => await task);
     }
+
+    [Test]
+    [Arguments("""{"subtype":"some_future_request"}""", "Unsupported control request subtype: some_future_request")]
+    [Arguments("""{"subtype":"can_use_tool","tool_name":"Bash","input":{}}""", "canUseTool callback is not provided")]
+    [Arguments("""{"subtype":"hook_callback","callback_id":"hook_0","input":{}}""", "No hook callback found for ID: hook_0")]
+    [Arguments("""{"subtype":"mcp_message","server_name":"math","message":{}}""", "SDK MCP server 'math' not found")]
+    [Arguments("""{}""", "Unsupported control request subtype: ")]
+    public async Task HandleControlRequestAsync_UnsupportedOrUnhandled_WritesError(string request, string expectedError)
+    {
+        var transport = Substitute.For<ITransport>();
+        var writtenJson = new List<string>();
+        transport.WriteAsync(Arg.Do<string>(s => writtenJson.Add(s)), Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        var handler = new ControlProtocolHandler(transport);
+
+        using var requestDoc = JsonDocument.Parse($$"""{"request_id":"req_x","request":{{request}}}""");
+
+        await handler.HandleControlRequestAsync(requestDoc.RootElement, CancellationToken.None);
+
+        await Assert.That(writtenJson.Count).IsEqualTo(1);
+        using var sentDoc = JsonDocument.Parse(writtenJson[0]);
+        var response = sentDoc.RootElement.GetProperty("response");
+        await Assert.That(response.GetProperty("subtype").GetString()).IsEqualTo("error");
+        await Assert.That(response.GetProperty("request_id").GetString()).IsEqualTo("req_x");
+        await Assert.That(response.GetProperty("error").GetString()).IsEqualTo(expectedError);
+    }
 }
