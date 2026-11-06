@@ -341,9 +341,11 @@ internal static partial class SessionStorage
             }
         }
 
-        // created_at from first entry's ISO timestamp
+        // created_at from the first ISO timestamp anywhere in the head. The first
+        // record can be a metadata entry, for example permission-mode, with no
+        // timestamp. The user or assistant record after it has one.
         long? createdAt = null;
-        string? firstTimestamp = ExtractJsonStringField(firstLine, "timestamp");
+        string? firstTimestamp = ExtractJsonStringField(head, "timestamp");
         if (firstTimestamp is not null)
         {
             try

@@ -43,7 +43,8 @@ internal static class SessionMessageParser
 
     /// <summary>
     /// Build conversation chain by finding leaf and walking parentUuid to root.
-    /// Returns messages in chronological order (root → leaf).
+    /// Returns messages in chronological order (root → leaf). Tool calls and results
+    /// that the walk skipped in a parallel tool turn are put back after the walk.
     /// </summary>
     public static List<JsonElement> BuildConversationChain(List<JsonElement> entries)
     {
@@ -127,7 +128,259 @@ internal static class SessionMessageParser
         }
 
         chain.Reverse();
-        return chain;
+        return RecoverOrphanedParallelToolResults(entries, byUuid, chain, chainSeen);
+    }
+
+    /// <summary>
+    /// Puts back the tool calls and results that a parallel turn left off the chain.
+    /// </summary>
+    /// <remarks>
+    /// The CLI writes one assistant entry per content block. A response with N
+    /// parallel tool calls is N assistant entries that share <c>message.id</c>,
+    /// chained one after another. The <c>parentUuid</c> of each tool_result entry
+    /// is the assistant entry of its own call, so the transcript forks. The
+    /// <c>parentUuid</c> walk follows only the branch that the next turn continued
+    /// from. It keeps one result and drops every call written after the call that
+    /// result answers.
+    ///
+    /// For each response on the chain, this collects its assistant entries and
+    /// tool results that the walk did not reach. It inserts them after the last
+    /// entry of the response on the chain, so the response stays in one piece and
+    /// each result comes after its call. Ported from Python SDK
+    /// <c>_recover_orphaned_parallel_tool_results</c>.
+    /// </remarks>
+    private static List<JsonElement> RecoverOrphanedParallelToolResults(
+        List<JsonElement> entries,
+        Dictionary<string, JsonElement> byUuid,
+        List<JsonElement> chain,
+        HashSet<string> seen)
+    {
+        var chainAssistants = chain.Where(e => GetString(e, "type") == "assistant").ToList();
+        if (chainAssistants.Count == 0) return chain;
+
+        // Anchor is the last entry of each response on the chain. Later entries
+        // in chain order overwrite earlier ones.
+        var anchorByMessageId = new Dictionary<string, string>();
+        foreach (var entry in chainAssistants)
+        {
+            if (AssistantMessageId(entry) is { } messageId)
+                anchorByMessageId[messageId] = Uuid(entry);
+        }
+        if (anchorByMessageId.Count == 0) return chain;
+
+        // Unique entries in file order. A repeated uuid keeps its first position
+        // and its last value, the same as the dictionary in the Python SDK.
+        var fileOrder = new List<JsonElement>();
+        var filePosition = new Dictionary<string, int>();
+        foreach (var entry in entries)
+        {
+            string uuid = Uuid(entry);
+            if (filePosition.TryAdd(uuid, fileOrder.Count))
+                fileOrder.Add(byUuid[uuid]);
+        }
+
+        // Group each assistant entry by response, and record which entry made
+        // each tool call. A tool_use id that two different responses claim is
+        // ambiguous. It maps to null and never places a result.
+        var siblingsByMessageId = new Dictionary<string, List<JsonElement>>();
+        var callOwner = new Dictionary<string, JsonElement?>();
+        var toolResultEntries = new List<JsonElement>();
+        foreach (var entry in fileOrder)
+        {
+            if (AssistantMessageId(entry) is { } messageId)
+            {
+                if (!siblingsByMessageId.TryGetValue(messageId, out var group))
+                {
+                    group = [];
+                    siblingsByMessageId[messageId] = group;
+                }
+                group.Add(entry);
+
+                foreach (string callId in ContentBlockIds(entry, "tool_use", "id"))
+                {
+                    if (!callOwner.TryGetValue(callId, out var owner))
+                    {
+                        callOwner[callId] = entry;
+                        continue;
+                    }
+                    bool sameResponse = owner is { } o && AssistantMessageId(o) == messageId;
+                    callOwner[callId] = sameResponse ? entry : null;
+                }
+            }
+            else if (IsToolResultEntry(entry))
+            {
+                toolResultEntries.Add(entry);
+            }
+        }
+
+        // Index each tool result under the assistant entries it can belong to:
+        // its parent, its sourceToolAssistantUUID and the owner of each call it
+        // answers. The last two count only when the same agent wrote both.
+        var resultsByAssistant = new Dictionary<string, List<JsonElement>>();
+        foreach (var result in toolResultEntries)
+        {
+            AddTo(resultsByAssistant, GetString(result, "parentUuid")!, result);
+
+            if (GetString(result, "sourceToolAssistantUUID") is { } source
+                && byUuid.TryGetValue(source, out var sourceEntry)
+                && SameWriter(result, sourceEntry))
+            {
+                AddTo(resultsByAssistant, source, result);
+            }
+
+            foreach (string callId in ContentBlockIds(result, "tool_result", "tool_use_id"))
+            {
+                if (callOwner.TryGetValue(callId, out var owner) && owner is { } o && SameWriter(result, o))
+                    AddTo(resultsByAssistant, Uuid(o), result);
+            }
+        }
+
+        // Only strays need this set, and strays are rare, so build it on first use.
+        HashSet<string>? answeredOnChain = null;
+
+        var processed = new HashSet<string>();
+        var inserts = new Dictionary<string, List<JsonElement>>();
+        foreach (var assistant in chainAssistants)
+        {
+            if (AssistantMessageId(assistant) is not { } messageId || !processed.Add(messageId))
+                continue;
+
+            List<JsonElement> group = siblingsByMessageId.TryGetValue(messageId, out var g) ? g : [assistant];
+            var memberUuids = group.Select(Uuid).ToHashSet();
+            var orphanedSiblings = group.Where(m => !seen.Contains(Uuid(m))).ToList();
+            var orphanedResults = new List<JsonElement>();
+
+            // Results indexed under this response whose parent is not one of its
+            // entries. They come back only if they answer a call that has no answer yet.
+            var strays = new List<JsonElement>();
+            var collected = new HashSet<string>();
+            foreach (var member in group)
+            {
+                if (!resultsByAssistant.TryGetValue(Uuid(member), out var memberResults)) continue;
+                foreach (var result in memberResults)
+                {
+                    string resultUuid = Uuid(result);
+                    if (seen.Contains(resultUuid) || !collected.Add(resultUuid)) continue;
+                    if (memberUuids.Contains(GetString(result, "parentUuid")!))
+                        orphanedResults.Add(result);
+                    else
+                        strays.Add(result);
+                }
+            }
+
+            if (strays.Count > 0)
+            {
+                answeredOnChain ??= chain
+                    .SelectMany(e => ContentBlockIds(e, "tool_result", "tool_use_id"))
+                    .ToHashSet();
+                var answered = new HashSet<string>(answeredOnChain);
+                foreach (var result in orphanedResults)
+                    answered.UnionWith(ContentBlockIds(result, "tool_result", "tool_use_id"));
+
+                foreach (var result in strays.OrderBy(e => filePosition[Uuid(e)]))
+                {
+                    List<string> callIds = ContentBlockIds(result, "tool_result", "tool_use_id");
+                    bool answersOpenCall = callIds.Any(callId =>
+                        !answered.Contains(callId)
+                        && callOwner.TryGetValue(callId, out var owner)
+                        && owner is { } o
+                        && memberUuids.Contains(Uuid(o)));
+                    if (!answersOpenCall) continue;
+                    answered.UnionWith(callIds);
+                    orphanedResults.Add(result);
+                }
+            }
+
+            if (orphanedSiblings.Count == 0 && orphanedResults.Count == 0) continue;
+
+            // Timestamp order keeps content block order and completion order.
+            // OrderBy is stable, so on a tie siblings keep file order and results
+            // keep the order of the calls they answer.
+            var recovered = orphanedSiblings.OrderBy(TimestampSortKey, StringComparer.Ordinal)
+                .Concat(orphanedResults.OrderBy(TimestampSortKey, StringComparer.Ordinal))
+                .ToList();
+            foreach (var entry in recovered)
+                seen.Add(Uuid(entry));
+            inserts[anchorByMessageId[messageId]] = recovered;
+        }
+
+        if (inserts.Count == 0) return chain;
+
+        var resultChain = new List<JsonElement>(chain.Count + inserts.Values.Sum(v => v.Count));
+        foreach (var entry in chain)
+        {
+            resultChain.Add(entry);
+            if (inserts.TryGetValue(Uuid(entry), out var recovered))
+                resultChain.AddRange(recovered);
+        }
+        return resultChain;
+    }
+
+    private static void AddTo(Dictionary<string, List<JsonElement>> index, string key, JsonElement value)
+    {
+        if (!index.TryGetValue(key, out var list))
+        {
+            list = [];
+            index[key] = list;
+        }
+        list.Add(value);
+    }
+
+    private static string Uuid(JsonElement entry) => entry.GetProperty("uuid").GetString()!;
+
+    private static string? GetString(JsonElement el, string prop) =>
+        el.TryGetProperty(prop, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+
+    private static string TimestampSortKey(JsonElement entry) => GetString(entry, "timestamp") ?? "";
+
+    /// <summary>The API <c>message.id</c> of an assistant entry, or null.</summary>
+    private static string? AssistantMessageId(JsonElement entry)
+    {
+        if (GetString(entry, "type") != "assistant") return null;
+        if (!entry.TryGetProperty("message", out var message) || message.ValueKind != JsonValueKind.Object) return null;
+        string? id = GetString(message, "id");
+        return string.IsNullOrEmpty(id) ? null : id;
+    }
+
+    /// <summary>The <paramref name="idField"/> of each <paramref name="blockType"/> content block.</summary>
+    private static List<string> ContentBlockIds(JsonElement entry, string blockType, string idField)
+    {
+        var ids = new List<string>();
+        if (!entry.TryGetProperty("message", out var message) || message.ValueKind != JsonValueKind.Object) return ids;
+        if (!message.TryGetProperty("content", out var content) || content.ValueKind != JsonValueKind.Array) return ids;
+        foreach (var block in content.EnumerateArray())
+        {
+            if (block.ValueKind == JsonValueKind.Object
+                && GetString(block, "type") == blockType
+                && GetString(block, idField) is { } id)
+            {
+                ids.Add(id);
+            }
+        }
+        return ids;
+    }
+
+    /// <summary>True for a user entry that has a parent and a tool_result block.</summary>
+    private static bool IsToolResultEntry(JsonElement entry)
+    {
+        if (GetString(entry, "type") != "user") return false;
+        if (string.IsNullOrEmpty(GetString(entry, "parentUuid"))) return false;
+        if (!entry.TryGetProperty("message", out var message) || message.ValueKind != JsonValueKind.Object) return false;
+        if (!message.TryGetProperty("content", out var content) || content.ValueKind != JsonValueKind.Array) return false;
+        return content.EnumerateArray().Any(b => b.ValueKind == JsonValueKind.Object && GetString(b, "type") == "tool_result");
+    }
+
+    /// <summary>True if the same agent or subagent wrote both entries.</summary>
+    private static bool SameWriter(JsonElement a, JsonElement b) =>
+        GetBool(a, "isSidechain") == GetBool(b, "isSidechain")
+        && JsonElementEquals(a, b, "agentId");
+
+    private static bool JsonElementEquals(JsonElement a, JsonElement b, string prop)
+    {
+        bool hasA = a.TryGetProperty(prop, out var va) && va.ValueKind != JsonValueKind.Null;
+        bool hasB = b.TryGetProperty(prop, out var vb) && vb.ValueKind != JsonValueKind.Null;
+        if (!hasA || !hasB) return hasA == hasB;
+        return JsonElement.DeepEquals(va, vb);
     }
 
     /// <summary>
