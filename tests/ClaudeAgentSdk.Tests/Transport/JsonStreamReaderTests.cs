@@ -34,6 +34,20 @@ public class JsonStreamReaderTests
     }
 
     [Test]
+    public async Task ReadAllAsync_UnknownMessageType_SkippedAndNextMessageArrives()
+    {
+        var input = """
+            {"type":"unknown_future_type","data":{"x":1}}
+            {"type":"result","subtype":"success","duration_ms":1000,"duration_api_ms":900,"is_error":false,"num_turns":1,"session_id":"s1"}
+            """;
+
+        var messages = await ReadAll(input);
+
+        await Assert.That(messages).Count().IsEqualTo(1);
+        await Assert.That(messages[0]).IsTypeOf<ResultMessage>();
+    }
+
+    [Test]
     public async Task ReadAllAsync_ConversationReset_Yields()
     {
         var input = """
@@ -119,10 +133,10 @@ public class JsonStreamReaderTests
     [Test]
     public async Task ReadAllAsync_DeserializationError_Propagates()
     {
-        // Valid JSON but unknown message type — should throw, not silently buffer
+        // Valid JSON that fails mapping because a required field is missing. It must throw, not buffer.
         var input = """
             {"type":"assistant","message":{"content":[{"type":"text","text":"Hello"}],"model":"m"}}
-            {"type":"unknown_future_type","data":{}}
+            {"type":"conversation_reset","uuid":"u1","session_id":"s1"}
             {"type":"result","subtype":"success","duration_ms":1,"duration_api_ms":1,"is_error":false,"num_turns":1,"session_id":"s1"}
             """;
 

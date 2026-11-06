@@ -348,12 +348,13 @@ public class MessageDeserializationTests
     }
 
     [Test]
-    public async Task UnknownMessageType_ThrowsJsonException()
+    public async Task UnknownMessageType_ReturnsNull()
     {
         const string json = """{"type": "unknown_future_type"}""";
 
-        await Assert.That(() => ClaudeJsonOptions.DeserializeMessage(json))
-            .ThrowsException();
+        var msg = ClaudeJsonOptions.DeserializeMessage(json);
+
+        await Assert.That(msg).IsNull();
     }
 
     [Test]

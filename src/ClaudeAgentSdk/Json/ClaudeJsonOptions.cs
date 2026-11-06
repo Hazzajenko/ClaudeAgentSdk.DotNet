@@ -12,6 +12,7 @@ public static class ClaudeJsonOptions
 {
     /// <summary>
     /// Deserialize a JSON line from CLI stdout into a Message.
+    /// Returns null for a message type that this SDK does not know.
     /// </summary>
     public static Message? DeserializeMessage(string json)
     {
@@ -44,7 +45,8 @@ public static class ClaudeJsonOptions
                 Uuid = GetRequiredString(root, "uuid", "conversation_reset"),
                 SessionId = GetRequiredString(root, "session_id", "conversation_reset"),
             },
-            var unknown => throw new JsonException($"Unknown message type: '{unknown}'")
+            // A newer CLI can send types this SDK does not know. Skip them so the session continues.
+            _ => null
         };
     }
 
