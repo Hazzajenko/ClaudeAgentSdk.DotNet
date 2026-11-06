@@ -55,6 +55,27 @@ public class CliTransportTests
     }
 
     [Test]
+    public async Task BuildStartInfo_UserSetsEntrypoint_UserValueWins()
+    {
+        var env = new Dictionary<string, string> { ["CLAUDE_CODE_ENTRYPOINT"] = "my-app" };
+        var transport = new CliTransport("claude", [], environmentVariables: env);
+
+        var startInfo = transport.BuildStartInfo();
+
+        await Assert.That(startInfo.Environment["CLAUDE_CODE_ENTRYPOINT"]).IsEqualTo("my-app");
+    }
+
+    [Test]
+    public async Task BuildStartInfo_NoUserEntrypoint_SetsSdkEntrypoint()
+    {
+        var transport = new CliTransport("claude", []);
+
+        var startInfo = transport.BuildStartInfo();
+
+        await Assert.That(startInfo.Environment["CLAUDE_CODE_ENTRYPOINT"]).IsEqualTo("sdk-dotnet");
+    }
+
+    [Test]
     public async Task PumpStderrAsync_CallbackThrowsOnOneLine_StillReceivesNextLine()
     {
         var received = new List<string>();

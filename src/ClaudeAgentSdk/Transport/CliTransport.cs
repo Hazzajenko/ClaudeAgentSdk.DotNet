@@ -100,6 +100,12 @@ internal sealed class CliTransport : ITransport
         // The parent may run inside Claude Code. With CLAUDECODE set, the child CLI acts as a nested session.
         startInfo.Environment.Remove("CLAUDECODE");
 
+        // Set before the user values, so a user CLAUDE_CODE_ENTRYPOINT wins.
+        if (_redirectStdin)
+        {
+            startInfo.Environment["CLAUDE_CODE_ENTRYPOINT"] = "sdk-dotnet";
+        }
+
         if (_environmentVariables is not null)
         {
             foreach (var (key, value) in _environmentVariables)
@@ -107,9 +113,6 @@ internal sealed class CliTransport : ITransport
                 startInfo.Environment[key] = value;
             }
         }
-
-        if (_redirectStdin)
-            startInfo.Environment["CLAUDE_CODE_ENTRYPOINT"] = "sdk-dotnet";
 
         return startInfo;
     }
