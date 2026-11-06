@@ -114,6 +114,12 @@ internal sealed class CliTransport : ITransport
             }
         }
 
+        // The inherited PWD names the parent's directory. Tools in the child read PWD, so it must match the working directory.
+        if (_workingDirectory is not null)
+        {
+            startInfo.Environment["PWD"] = _workingDirectory;
+        }
+
         return startInfo;
     }
 

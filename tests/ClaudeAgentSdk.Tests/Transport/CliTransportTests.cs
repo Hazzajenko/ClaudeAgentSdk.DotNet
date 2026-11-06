@@ -76,6 +76,29 @@ public class CliTransportTests
     }
 
     [Test]
+    public async Task BuildStartInfo_WithWorkingDirectory_SetsPwdToWorkingDirectory()
+    {
+        string dir = Path.GetTempPath();
+        var env = new Dictionary<string, string> { ["PWD"] = "/somewhere/else" };
+        var transport = new CliTransport("claude", [], workingDirectory: dir, environmentVariables: env);
+
+        var startInfo = transport.BuildStartInfo();
+
+        await Assert.That(startInfo.Environment["PWD"]).IsEqualTo(dir);
+    }
+
+    [Test]
+    public async Task BuildStartInfo_NoWorkingDirectory_KeepsUserPwd()
+    {
+        var env = new Dictionary<string, string> { ["PWD"] = "/from/user" };
+        var transport = new CliTransport("claude", [], environmentVariables: env);
+
+        var startInfo = transport.BuildStartInfo();
+
+        await Assert.That(startInfo.Environment["PWD"]).IsEqualTo("/from/user");
+    }
+
+    [Test]
     public async Task PumpStderrAsync_CallbackThrowsOnOneLine_StillReceivesNextLine()
     {
         var received = new List<string>();
