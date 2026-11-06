@@ -2,9 +2,22 @@ namespace ClaudeAgentSdk;
 
 public sealed record SandboxNetworkConfig
 {
+    /// <summary>Domain names that sandboxed processes can access.</summary>
+    public IReadOnlyList<string>? AllowedDomains { get; init; }
+
+    /// <summary>Domains that are always blocked, even when <see cref="AllowedDomains"/> matches them.</summary>
+    public IReadOnlyList<string>? DeniedDomains { get; init; }
+
+    /// <summary>When true in managed settings, only the managed <c>allowedDomains</c> apply.</summary>
+    public bool? AllowManagedDomainsOnly { get; init; }
+
     public IReadOnlyList<string>? AllowUnixSockets { get; init; }
     public bool? AllowAllUnixSockets { get; init; }
     public bool? AllowLocalBinding { get; init; }
+
+    /// <summary>macOS only. XPC or Mach service names to allow. A trailing wildcard is supported.</summary>
+    public IReadOnlyList<string>? AllowMachLookup { get; init; }
+
     public int? HttpProxyPort { get; init; }
     public int? SocksProxyPort { get; init; }
 }

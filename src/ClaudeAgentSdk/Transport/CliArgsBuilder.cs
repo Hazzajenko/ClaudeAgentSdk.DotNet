@@ -437,13 +437,12 @@ internal static class CliArgsBuilder
                 w.WriteNumber("httpProxyPort", httpProxy);
             if (network.SocksProxyPort is { } socksProxy)
                 w.WriteNumber("socksProxyPort", socksProxy);
-            if (network.AllowUnixSockets is { Count: > 0 })
-            {
-                w.WriteStartArray("allowUnixSockets");
-                foreach (string sock in network.AllowUnixSockets)
-                    w.WriteStringValue(sock);
-                w.WriteEndArray();
-            }
+            if (network.AllowManagedDomainsOnly is { } managedOnly)
+                w.WriteBoolean("allowManagedDomainsOnly", managedOnly);
+            WriteStringArray(w, "allowedDomains", network.AllowedDomains);
+            WriteStringArray(w, "deniedDomains", network.DeniedDomains);
+            WriteStringArray(w, "allowUnixSockets", network.AllowUnixSockets);
+            WriteStringArray(w, "allowMachLookup", network.AllowMachLookup);
             w.WriteEndObject();
         }
 
@@ -463,5 +462,20 @@ internal static class CliArgsBuilder
         }
 
         w.WriteEndObject();
+    }
+
+    private static void WriteStringArray(Utf8JsonWriter w, string name, IReadOnlyList<string>? values)
+    {
+        if (values is not { Count: > 0 })
+        {
+            return;
+        }
+
+        w.WriteStartArray(name);
+        foreach (string value in values)
+        {
+            w.WriteStringValue(value);
+        }
+        w.WriteEndArray();
     }
 }
