@@ -1,3 +1,5 @@
+using System.ComponentModel;
+
 namespace ClaudeAgentSdk.Sessions;
 
 /// <summary>
@@ -9,12 +11,29 @@ public static class Sessions
     /// List sessions sorted by last modified (newest first).
     /// When directory is provided, returns sessions for that project. Otherwise all projects.
     /// </summary>
-    public static IReadOnlyList<SessionInfo> List(string? directory = null, int? limit = null)
+    /// <param name="directory">Project directory. When null, sessions from all projects are listed.</param>
+    /// <param name="limit">Maximum number of sessions to return. Null or 0 returns all.</param>
+    /// <param name="offset">Number of sessions to skip from the start of the sorted list.</param>
+    public static IReadOnlyList<SessionInfo> List(string? directory = null, int? limit = null, int offset = 0)
     {
-        if (directory is not null)
-            return ListForProject(directory, limit);
-        return ListAllSessions(limit);
+        var sessions = directory is not null ? ListForProject(directory) : ListAllSessions();
+        sessions.Sort((a, b) => b.LastModified.CompareTo(a.LastModified));
+
+        IEnumerable<SessionInfo> page = sessions;
+        if (offset > 0)
+            page = page.Skip(offset);
+        if (limit is > 0)
+            page = page.Take(limit.Value);
+        return page.ToList();
     }
+
+    /// <summary>
+    /// List sessions sorted by last modified (newest first). Kept so that code
+    /// compiled against the overload without <c>offset</c> still runs.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static IReadOnlyList<SessionInfo> List(string? directory, int? limit) =>
+        List(directory, limit, offset: 0);
 
     /// <summary>
     /// Get metadata for a single session by ID.
@@ -123,21 +142,16 @@ public static class Sessions
         return null;
     }
 
-    private static IReadOnlyList<SessionInfo> ListForProject(string directory, int? limit)
+    private static List<SessionInfo> ListForProject(string directory)
     {
         string canonical = SessionStorage.CanonicalizePath(directory);
         string? projectDir = SessionStorage.FindProjectDir(canonical);
         if (projectDir is null) return [];
 
-        var sessions = new List<SessionInfo>(SessionStorage.ReadSessionsFromDir(projectDir, canonical));
-        sessions.Sort((a, b) => b.LastModified.CompareTo(a.LastModified));
-
-        if (limit is > 0)
-            return sessions.GetRange(0, Math.Min(limit.Value, sessions.Count));
-        return sessions;
+        return [.. SessionStorage.ReadSessionsFromDir(projectDir, canonical)];
     }
 
-    private static IReadOnlyList<SessionInfo> ListAllSessions(int? limit)
+    private static List<SessionInfo> ListAllSessions()
     {
         string projectsDir = SessionStorage.GetProjectsDir();
         if (!Directory.Exists(projectsDir)) return [];
@@ -156,11 +170,6 @@ public static class Sessions
                 byId[s.SessionId] = s;
         }
 
-        var result = new List<SessionInfo>(byId.Values);
-        result.Sort((a, b) => b.LastModified.CompareTo(a.LastModified));
-
-        if (limit is > 0)
-            return result.GetRange(0, Math.Min(limit.Value, result.Count));
-        return result;
+        return [.. byId.Values];
     }
 }
