@@ -45,12 +45,41 @@ internal sealed class CliTransport : ITransport
             return;
         }
 
+        var startInfo = BuildStartInfo();
+
+        try
+        {
+            _process = Process.Start(startInfo)
+                ?? throw new CliConnectionException("Failed to start CLI process");
+        }
+        catch (System.ComponentModel.Win32Exception ex)
+        {
+            throw new CliNotFoundException(
+                $"Claude Code CLI not found at '{_cliPath}'. Install with: npm install -g @anthropic-ai/claude-code",
+                ex)
+                { SearchedPath = _cliPath };
+        }
+
+        if (_stderrCallback is not null)
+        {
+            var stderr = _process.StandardError;
+            var callback = _stderrCallback;
+            _ = Task.Run(() => PumpStderrAsync(stderr, callback, cancellationToken), cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Builds the process start info for the CLI. Internal so tests can check it without a process.
+    /// </summary>
+    internal ProcessStartInfo BuildStartInfo()
+    {
         var startInfo = new ProcessStartInfo
         {
             FileName = _cliPath,
             RedirectStandardInput = _redirectStdin,
             RedirectStandardOutput = true,
-            RedirectStandardError = _redirectStdin, // only redirect stderr when stdin is redirected (streaming mode)
+            // Nothing reads stderr without a callback. A redirected pipe that nobody reads fills and blocks the CLI.
+            RedirectStandardError = _stderrCallback is not null,
             UseShellExecute = false,
             CreateNoWindow = true,
         };
@@ -76,24 +105,7 @@ internal sealed class CliTransport : ITransport
         if (_redirectStdin)
             startInfo.Environment["CLAUDE_CODE_ENTRYPOINT"] = "sdk-dotnet";
 
-        try
-        {
-            _process = Process.Start(startInfo)
-                ?? throw new CliConnectionException("Failed to start CLI process");
-        }
-        catch (System.ComponentModel.Win32Exception ex)
-        {
-            throw new CliNotFoundException(
-                $"Claude Code CLI not found at '{_cliPath}'. Install with: npm install -g @anthropic-ai/claude-code",
-                ex)
-                { SearchedPath = _cliPath };
-        }
-
-        // Read stderr in background (only when stderr is redirected)
-        if (_stderrCallback is not null && _redirectStdin)
-        {
-            _ = Task.Run(() => ReadStderrAsync(cancellationToken), cancellationToken);
-        }
+        return startInfo;
     }
 
     public async IAsyncEnumerable<Message> ReadMessagesAsync(
@@ -170,32 +182,39 @@ internal sealed class CliTransport : ITransport
         _process = null;
     }
 
-    private async Task ReadStderrAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Reads stderr lines until the stream ends and passes each one to the callback.
+    /// An exception from the callback skips that line only. A read error stops the loop.
+    /// </summary>
+    internal static async Task PumpStderrAsync(
+        TextReader stderr, Action<string> callback, CancellationToken cancellationToken)
     {
-        if (_process is null)
+        while (!cancellationToken.IsCancellationRequested)
         {
-            return;
-        }
-
-        try
-        {
-            while (!cancellationToken.IsCancellationRequested)
+            string? line;
+            try
             {
-                string? line = await _process.StandardError.ReadLineAsync(cancellationToken);
-                if (line is null)
-                {
-                    break;
-                }
-                _stderrCallback?.Invoke(line);
+                line = await stderr.ReadLineAsync(cancellationToken);
             }
-        }
-        catch (OperationCanceledException)
-        {
-            // Expected on shutdown
-        }
-        catch
-        {
-            // Ignore stderr read errors
+            catch
+            {
+                // Cancellation, or the pipe closed or broke on shutdown.
+                return;
+            }
+
+            if (line is null)
+            {
+                return;
+            }
+
+            try
+            {
+                callback(line);
+            }
+            catch
+            {
+                // A callback error must not stop later stderr lines.
+            }
         }
     }
 }
