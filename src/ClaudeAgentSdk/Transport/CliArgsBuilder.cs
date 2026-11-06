@@ -231,6 +231,11 @@ internal static class CliArgsBuilder
             args.Add("--include-partial-messages");
         }
 
+        if (options.IncludeHookEvents)
+        {
+            args.Add("--include-hook-events");
+        }
+
         if (options.Effort is { } effort)
         {
             args.Add("--effort");
