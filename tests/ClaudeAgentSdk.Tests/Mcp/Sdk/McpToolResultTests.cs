@@ -48,4 +48,53 @@ public class McpToolResultTests
         await Assert.That(item.GetProperty("type").GetString()).IsEqualTo("text");
         await Assert.That(item.GetProperty("text").GetString()).IsEqualTo("hello world");
     }
+
+    [Test]
+    public async Task Image_WritesBase64ImageContent()
+    {
+        var result = McpToolResult.Image([0x89, 0x50, 0x4E, 0x47], "image/png");
+
+        await Assert.That(result).IsTypeOf<McpImageToolResult>();
+        await Assert.That(((McpImageToolResult)result).Data).IsEqualTo("iVBORw==");
+
+        var item = WriteSingleContent(result);
+        await Assert.That(item.GetProperty("type").GetString()).IsEqualTo("image");
+        await Assert.That(item.GetProperty("data").GetString()).IsEqualTo("iVBORw==");
+        await Assert.That(item.GetProperty("mimeType").GetString()).IsEqualTo("image/png");
+    }
+
+    [Test]
+    public async Task ResourceLink_WritesNameUriAndDescriptionAsText()
+    {
+        var result = McpToolResult.ResourceLink("file:///tmp/report.md", "report.md", "Weekly report");
+
+        await Assert.That(result).IsTypeOf<McpResourceLinkToolResult>();
+
+        var item = WriteSingleContent(result);
+        await Assert.That(item.GetProperty("type").GetString()).IsEqualTo("text");
+        await Assert.That(item.GetProperty("text").GetString())
+            .IsEqualTo("report.md\nfile:///tmp/report.md\nWeekly report");
+    }
+
+    [Test]
+    public async Task ResourceLink_WithoutDescription_WritesNameAndUri()
+    {
+        var item = WriteSingleContent(McpToolResult.ResourceLink("https://example.com/a", "a"));
+
+        await Assert.That(item.GetProperty("text").GetString()).IsEqualTo("a\nhttps://example.com/a");
+    }
+
+    private static JsonElement WriteSingleContent(McpToolResult result)
+    {
+        using var stream = new MemoryStream();
+        using (var w = new Utf8JsonWriter(stream))
+        {
+            w.WriteStartArray();
+            result.WriteContentTo(w);
+            w.WriteEndArray();
+        }
+
+        using var doc = JsonDocument.Parse(stream.ToArray());
+        return doc.RootElement[0].Clone();
+    }
 }

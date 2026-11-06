@@ -155,6 +155,26 @@ public class SdkMcpRequestHandlerTests
     }
 
     [Test]
+    public async Task ToolsCall_ImageResult_ReturnsImageContent()
+    {
+        var tool = SdkMcpTool.Create("shot", "Screenshot",
+            McpJsonSchema.Object(),
+            (args, ct) => McpToolResult.Image([1, 2, 3], "image/jpeg"));
+
+        var handler = new SdkMcpRequestHandler(CreateServerWithTools(tool));
+
+        using var msg = JsonDocument.Parse("""
+            {"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"shot","arguments":{}}}
+            """);
+        var response = await handler.HandleAsync(msg.RootElement, CancellationToken.None);
+
+        var content = response.GetProperty("result").GetProperty("content")[0];
+        await Assert.That(content.GetProperty("type").GetString()).IsEqualTo("image");
+        await Assert.That(content.GetProperty("data").GetString()).IsEqualTo("AQID");
+        await Assert.That(content.GetProperty("mimeType").GetString()).IsEqualTo("image/jpeg");
+    }
+
+    [Test]
     public async Task ToolsCall_ErrorResult_SetsIsError()
     {
         var errorTool = SdkMcpTool.Create("fail", "Always fails",
