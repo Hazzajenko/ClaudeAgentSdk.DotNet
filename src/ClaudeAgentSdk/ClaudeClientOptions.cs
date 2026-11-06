@@ -74,7 +74,13 @@ public enum EffortLevel
     Low,
     Medium,
     High,
-    Max
+    Max,
+
+    /// <summary>
+    /// Between <see cref="High"/> and <see cref="Max"/>. It is last in the enum so that
+    /// the number of each older value does not change.
+    /// </summary>
+    XHigh
 }
 
 public abstract record ThinkingConfig;

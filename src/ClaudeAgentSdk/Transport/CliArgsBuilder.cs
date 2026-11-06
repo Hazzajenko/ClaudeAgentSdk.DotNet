@@ -227,6 +227,7 @@ internal static class CliArgsBuilder
                 EffortLevel.Low => "low",
                 EffortLevel.Medium => "medium",
                 EffortLevel.High => "high",
+                EffortLevel.XHigh => "xhigh",
                 EffortLevel.Max => "max",
                 _ => "medium"
             });

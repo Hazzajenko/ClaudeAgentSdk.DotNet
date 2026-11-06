@@ -204,6 +204,7 @@ public class CliArgsBuilderTests
     [Arguments(EffortLevel.Low, "low")]
     [Arguments(EffortLevel.Medium, "medium")]
     [Arguments(EffortLevel.High, "high")]
+    [Arguments(EffortLevel.XHigh, "xhigh")]
     [Arguments(EffortLevel.Max, "max")]
     public async Task Effort_MapsToCliString(EffortLevel level, string expected)
     {
