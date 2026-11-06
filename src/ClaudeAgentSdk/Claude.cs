@@ -79,6 +79,7 @@ public static class Claude
 
                 case ControlResponseMessage:
                 case ControlRequestMessage:
+                case ControlCancelRequestMessage:
                     continue; // skip control messages
 
                 case ResultMessage:

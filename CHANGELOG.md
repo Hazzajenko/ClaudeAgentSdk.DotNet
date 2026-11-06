@@ -19,6 +19,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - SDK MCP tool annotations now go to the CLI in `tools/list` as `readOnlyHint`, `destructiveHint` and `openWorldHint`, the MCP names. Before, the SDK wrote `readOnly`, `destructive` and `openWorld`, which MCP clients drop. `ClaudeClient.GetMcpStatusAsync` still reads the `readOnly`, `destructive` and `openWorld` names, because the CLI `mcp_status` response uses them.
 - An unknown tool or an exception from an SDK MCP tool handler now comes back as an `isError` tool result with the message, which the model can read. Before, it came back as a JSON-RPC error. A handler that throws `OperationCanceledException` after its token is cancelled still gets a JSON-RPC error.
 - An SDK MCP server now echoes a JSON-RPC `id` back unchanged. Before, a string `id` threw before the request was handled.
+- A `control_cancel_request` from the CLI now cancels the token passed to the running hook, `CanUseTool` callback or SDK MCP tool for that request. The SDK writes no `control_response` for a cancelled request, and the session continues.
 
 ### Security
 

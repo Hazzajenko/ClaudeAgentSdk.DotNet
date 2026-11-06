@@ -1,4 +1,5 @@
 using System.Text.Json;
+using ClaudeAgentSdk.Hooks;
 using ClaudeAgentSdk.Messages;
 using ClaudeAgentSdk.Transport;
 
@@ -59,6 +60,55 @@ public class TransportInjectionTests
         await Assert.That(messages.Count).IsGreaterThanOrEqualTo(1);
         await Assert.That(messages[^1]).IsTypeOf<ResultMessage>();
         await Assert.That(transport.WriteCount).IsGreaterThanOrEqualTo(2); // init + user message
+    }
+
+    [Test]
+    public async Task ClaudeClient_ControlCancelRequest_CancelsHook_AndSessionContinues()
+    {
+        var contentMessages = """
+            {"type":"control_request","request_id":"cli_req_1","request":{"subtype":"hook_callback","callback_id":"hook_0","input":{"hook_event_name":"PreToolUse","session_id":"s1","transcript_path":"/tmp/t.jsonl","cwd":"/tmp","tool_name":"Bash","tool_input":{},"tool_use_id":"toolu_01"}}}
+            {"type":"control_cancel_request","request_id":"cli_req_1"}
+            {"type":"assistant","message":{"content":[{"type":"text","text":"after cancel"}],"model":"m"}}
+            {"type":"result","subtype":"success","duration_ms":10,"duration_api_ms":5,"is_error":false,"num_turns":1,"session_id":"s1","result":"after cancel"}
+            """;
+
+        var hookCancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var options = new ClaudeClientOptions
+        {
+            Hooks = new Dictionary<HookEvent, IReadOnlyList<HookMatcher>>
+            {
+                [HookEvent.PreToolUse] =
+                [
+                    HookMatcher.Create("Bash", async (_, ct) =>
+                    {
+                        try
+                        {
+                            await Task.Delay(Timeout.Infinite, ct);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            hookCancelled.TrySetResult();
+                            throw;
+                        }
+                        return HookOutput.Empty;
+                    })
+                ]
+            }
+        };
+
+        var transport = CreateMockWithFlow(contentMessages);
+        await using var client = new ClaudeClient(options: options, transport: transport);
+
+        var messages = new List<Message>();
+        await foreach (var msg in client.SendAsync("test"))
+        {
+            messages.Add(msg);
+        }
+
+        await hookCancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(messages[^1]).IsTypeOf<ResultMessage>();
+        await Assert.That(((ResultMessage)messages[^1]).Result).IsEqualTo("after cancel");
+        await Assert.That(transport.WrittenMessages.Any(m => m.Contains("cli_req_1"))).IsFalse();
     }
 
     [Test]
