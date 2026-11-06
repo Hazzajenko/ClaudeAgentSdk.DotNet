@@ -427,6 +427,36 @@ public class CliArgsBuilderTests
         await Assert.That(json).Contains("/var/run/docker.sock");
     }
 
+    private static string JoinStrings(JsonElement array) =>
+        string.Join("|", array.EnumerateArray().Select(e => e.GetString()));
+
+    [Test]
+    public async Task Sandbox_IgnoreViolations_WritesEachCommandPatternInOrder()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions
+        {
+            Sandbox = new SandboxSettings
+            {
+                IgnoreViolations = new Dictionary<string, IReadOnlyList<string>>
+                {
+                    ["*"] = ["/etc/hosts"],
+                    ["npm install"] = ["registry.npmjs.org", "/tmp"],
+                    ["git"] = []
+                }
+            }
+        });
+
+        string json = args[args.IndexOf("--settings") + 1];
+        using var doc = JsonDocument.Parse(json);
+        JsonElement violations = doc.RootElement.GetProperty("sandbox").GetProperty("ignoreViolations");
+
+        string keys = string.Join("|", violations.EnumerateObject().Select(p => p.Name));
+        await Assert.That(keys).IsEqualTo("*|npm install|git");
+        await Assert.That(JoinStrings(violations.GetProperty("*"))).IsEqualTo("/etc/hosts");
+        await Assert.That(JoinStrings(violations.GetProperty("npm install"))).IsEqualTo("registry.npmjs.org|/tmp");
+        await Assert.That(violations.GetProperty("git").GetArrayLength()).IsEqualTo(0);
+    }
+
     [Test]
     public async Task ExtraArgs_WithValue_AddsKeyValue()
     {

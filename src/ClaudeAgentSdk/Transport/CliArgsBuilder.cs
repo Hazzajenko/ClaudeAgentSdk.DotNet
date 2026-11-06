@@ -450,18 +450,13 @@ internal static class CliArgsBuilder
         if (sandbox.IgnoreViolations is { } violations)
         {
             w.WriteStartObject("ignoreViolations");
-            if (violations.File is { Count: > 0 })
+            foreach (KeyValuePair<string, IReadOnlyList<string>> entry in violations)
             {
-                w.WriteStartArray("file");
-                foreach (string f in violations.File)
-                    w.WriteStringValue(f);
-                w.WriteEndArray();
-            }
-            if (violations.Network is { Count: > 0 })
-            {
-                w.WriteStartArray("network");
-                foreach (string n in violations.Network)
-                    w.WriteStringValue(n);
+                w.WriteStartArray(entry.Key);
+                foreach (string value in entry.Value)
+                {
+                    w.WriteStringValue(value);
+                }
                 w.WriteEndArray();
             }
             w.WriteEndObject();

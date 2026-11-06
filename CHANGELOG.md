@@ -7,6 +7,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Changed
+
+- Breaking: `SandboxSettings.IgnoreViolations` is now `IReadOnlyDictionary<string, IReadOnlyList<string>>?` and the `SandboxIgnoreViolations` record is removed. Each key is a command pattern, and `"*"` matches every command. The old `File` and `Network` members wrote the keys `file` and `network`, which the CLI reads as command patterns, so they matched the wrong commands. Keys go to the `--settings` JSON in the order you add them. To migrate, change `new SandboxIgnoreViolations { File = ["/etc/hosts"] }` to `new Dictionary<string, IReadOnlyList<string>> { ["*"] = ["/etc/hosts"] }`.
+
 ### Security
 
 - On Windows, a `.bat` or `.cmd` path from `CliPath` or `CLAUDE_CLI_PATH` now throws `CliConnectionException` before any process starts. Windows runs batch files through cmd.exe, which can run commands injected through CLI arguments. Use the native `claude.exe` instead.
