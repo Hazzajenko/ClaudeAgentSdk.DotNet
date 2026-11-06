@@ -71,9 +71,25 @@ public enum EffortLevel
     Max
 }
 
+/// <summary>How the CLI returns thinking text. Sent as <c>--thinking-display</c>.</summary>
+public enum ThinkingDisplay
+{
+    Summarized,
+    Omitted
+}
+
 public abstract record ThinkingConfig;
-public sealed record ThinkingConfigAdaptive : ThinkingConfig;
-public sealed record ThinkingConfigEnabled(int BudgetTokens) : ThinkingConfig;
+
+public sealed record ThinkingConfigAdaptive : ThinkingConfig
+{
+    public ThinkingDisplay? Display { get; init; }
+}
+
+public sealed record ThinkingConfigEnabled(int BudgetTokens) : ThinkingConfig
+{
+    public ThinkingDisplay? Display { get; init; }
+}
+
 public sealed record ThinkingConfigDisabled : ThinkingConfig;
 
 public sealed record SdkPluginConfig(string Type, string Path);
