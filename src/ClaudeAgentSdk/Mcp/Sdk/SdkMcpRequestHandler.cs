@@ -86,14 +86,7 @@ internal sealed class SdkMcpRequestHandler
 
                 if (tool.Annotations is { } annotations)
                 {
-                    w.WriteStartObject("annotations");
-                    if (annotations.ReadOnly is { } readOnly)
-                        w.WriteBoolean("readOnly", readOnly);
-                    if (annotations.Destructive is { } destructive)
-                        w.WriteBoolean("destructive", destructive);
-                    if (annotations.OpenWorld is { } openWorld)
-                        w.WriteBoolean("openWorld", openWorld);
-                    w.WriteEndObject();
+                    WriteAnnotations(w, annotations);
                 }
 
                 w.WriteEndObject();
@@ -104,6 +97,24 @@ internal sealed class SdkMcpRequestHandler
             w.WriteEndObject();
         }
         return ParseElement(stream);
+    }
+
+    private static void WriteAnnotations(Utf8JsonWriter w, McpToolAnnotations annotations)
+    {
+        w.WriteStartObject("annotations");
+        if (annotations.ReadOnly is { } readOnly)
+        {
+            w.WriteBoolean("readOnlyHint", readOnly);
+        }
+        if (annotations.Destructive is { } destructive)
+        {
+            w.WriteBoolean("destructiveHint", destructive);
+        }
+        if (annotations.OpenWorld is { } openWorld)
+        {
+            w.WriteBoolean("openWorldHint", openWorld);
+        }
+        w.WriteEndObject();
     }
 
     private async Task<JsonElement> HandleToolCallAsync(

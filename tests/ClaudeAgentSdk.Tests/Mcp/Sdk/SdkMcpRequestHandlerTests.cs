@@ -61,12 +61,17 @@ public class SdkMcpRequestHandlerTests
     }
 
     [Test]
-    public async Task ToolsList_WithAnnotations_IncludesAnnotations()
+    public async Task ToolsList_WithAnnotations_WritesMcpHintNames()
     {
         var tool = SdkMcpTool.Create("reader", "Read data",
             McpJsonSchema.Object(),
             async (args, ct) => McpToolResult.Text("data"),
-            new McpToolAnnotations { ReadOnly = true, Destructive = false });
+            new McpToolAnnotations
+            {
+                ReadOnly = true,
+                Destructive = false,
+                OpenWorld = false
+            });
 
         var handler = new SdkMcpRequestHandler(CreateServerWithTools(tool));
 
@@ -74,8 +79,30 @@ public class SdkMcpRequestHandlerTests
         var response = await handler.HandleAsync(msg.RootElement, CancellationToken.None);
 
         var annotations = response.GetProperty("result").GetProperty("tools")[0].GetProperty("annotations");
-        await Assert.That(annotations.GetProperty("readOnly").GetBoolean()).IsTrue();
-        await Assert.That(annotations.GetProperty("destructive").GetBoolean()).IsFalse();
+        await Assert.That(annotations.GetProperty("readOnlyHint").GetBoolean()).IsTrue();
+        await Assert.That(annotations.GetProperty("destructiveHint").GetBoolean()).IsFalse();
+        await Assert.That(annotations.GetProperty("openWorldHint").GetBoolean()).IsFalse();
+        await Assert.That(annotations.TryGetProperty("readOnly", out _)).IsFalse();
+        await Assert.That(annotations.TryGetProperty("destructive", out _)).IsFalse();
+        await Assert.That(annotations.TryGetProperty("openWorld", out _)).IsFalse();
+    }
+
+    [Test]
+    public async Task ToolsList_WithPartialAnnotations_OmitsUnsetHints()
+    {
+        var tool = SdkMcpTool.Create("reader", "Read data",
+            McpJsonSchema.Object(),
+            async (args, ct) => McpToolResult.Text("data"),
+            new McpToolAnnotations { ReadOnly = true });
+
+        var handler = new SdkMcpRequestHandler(CreateServerWithTools(tool));
+
+        using var msg = JsonDocument.Parse("""{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}""");
+        var response = await handler.HandleAsync(msg.RootElement, CancellationToken.None);
+
+        var annotations = response.GetProperty("result").GetProperty("tools")[0].GetProperty("annotations");
+        await Assert.That(annotations.EnumerateObject().Count()).IsEqualTo(1);
+        await Assert.That(annotations.GetProperty("readOnlyHint").GetBoolean()).IsTrue();
     }
 
     [Test]
