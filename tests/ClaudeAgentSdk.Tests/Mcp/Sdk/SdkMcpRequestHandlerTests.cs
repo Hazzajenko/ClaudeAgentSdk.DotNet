@@ -110,6 +110,31 @@ public class SdkMcpRequestHandlerTests
     }
 
     [Test]
+    public async Task ToolsList_WithMaxResultSizeChars_WritesAnthropicMeta()
+    {
+        var tool = CreateAddTool() with { MaxResultSizeChars = 500_000 };
+        var handler = new SdkMcpRequestHandler(CreateServerWithTools(tool));
+
+        using var msg = JsonDocument.Parse("""{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}""");
+        var response = await handler.HandleAsync(msg.RootElement, CancellationToken.None);
+
+        var meta = response.GetProperty("result").GetProperty("tools")[0].GetProperty("_meta");
+        await Assert.That(meta.GetProperty("anthropic/maxResultSizeChars").GetInt32()).IsEqualTo(500_000);
+    }
+
+    [Test]
+    public async Task ToolsList_WithoutMaxResultSizeChars_OmitsMeta()
+    {
+        var handler = new SdkMcpRequestHandler(CreateServerWithTools(CreateAddTool()));
+
+        using var msg = JsonDocument.Parse("""{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}""");
+        var response = await handler.HandleAsync(msg.RootElement, CancellationToken.None);
+
+        var tool = response.GetProperty("result").GetProperty("tools")[0];
+        await Assert.That(tool.TryGetProperty("_meta", out _)).IsFalse();
+    }
+
+    [Test]
     public async Task ToolsCall_InvokesHandlerAndReturnsResult()
     {
         var handler = new SdkMcpRequestHandler(CreateServerWithTools(CreateAddTool()));

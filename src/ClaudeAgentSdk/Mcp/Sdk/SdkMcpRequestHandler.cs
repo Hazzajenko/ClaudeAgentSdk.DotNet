@@ -98,6 +98,15 @@ internal sealed class SdkMcpRequestHandler
                     WriteAnnotations(w, annotations);
                 }
 
+                // MCP clients drop annotation fields they do not know, so Claude Code reads
+                // its own hints from namespaced _meta keys.
+                if (tool.MaxResultSizeChars is { } maxResultSizeChars)
+                {
+                    w.WriteStartObject("_meta");
+                    w.WriteNumber("anthropic/maxResultSizeChars", maxResultSizeChars);
+                    w.WriteEndObject();
+                }
+
                 w.WriteEndObject();
             }
 

@@ -21,6 +21,16 @@ public sealed record SdkMcpTool
     public required SdkMcpToolHandler Handler { get; init; }
     public McpToolAnnotations? Annotations { get; init; }
 
+    /// <summary>
+    /// Size in characters up to which Claude Code keeps this tool's result inline.
+    /// A larger result is saved to a file and the model sees a preview.
+    /// Null uses the Claude Code default.
+    /// </summary>
+    /// <remarks>
+    /// Sent in <c>tools/list</c> as <c>_meta: {"anthropic/maxResultSizeChars": N}</c>.
+    /// </remarks>
+    public int? MaxResultSizeChars { get; init; }
+
     /// <summary>Create with async handler taking raw <see cref="JsonElement"/> input.</summary>
     public static SdkMcpTool Create(
         string name,
