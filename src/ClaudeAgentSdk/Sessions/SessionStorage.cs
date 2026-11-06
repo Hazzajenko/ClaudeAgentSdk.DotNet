@@ -11,7 +11,7 @@ namespace ClaudeAgentSdk.Sessions;
 /// </summary>
 internal static partial class SessionStorage
 {
-    private const int LiteReadBufSize = 65536;
+    public const int LiteReadBufSize = 65536;
     private const int MaxSanitizedLength = 200;
 
     [GeneratedRegex(@"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", RegexOptions.IgnoreCase)]

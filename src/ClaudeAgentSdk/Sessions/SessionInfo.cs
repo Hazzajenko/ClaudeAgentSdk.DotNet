@@ -16,6 +16,15 @@ public sealed record SessionInfo
     public long? CreatedAt { get; init; }
 }
 
+/// <summary>
+/// Result of <see cref="Sessions.Fork"/>.
+/// </summary>
+public sealed record ForkSessionResult
+{
+    /// <summary>UUID of the new forked session.</summary>
+    public required string SessionId { get; init; }
+}
+
 public sealed record SessionMessage
 {
     public required string Type { get; init; }

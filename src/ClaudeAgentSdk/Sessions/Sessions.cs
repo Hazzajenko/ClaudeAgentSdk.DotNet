@@ -140,6 +140,32 @@ public static class Sessions
     public static void Delete(string sessionId, string? directory = null) =>
         SessionMutations.Delete(sessionId, directory);
 
+    /// <summary>
+    /// Fork a session into a new session file in the same project directory. Each message
+    /// gets a new UUID and the <c>parentUuid</c> chain follows the new values. Each message
+    /// also gets <c>sessionId</c> set to the new session and a <c>forkedFrom</c> field that
+    /// names the source session and message. Sidechain and progress entries are not copied,
+    /// and file-history snapshots are not copied, so the fork has no undo history.
+    /// </summary>
+    /// <param name="sessionId">UUID of the source session.</param>
+    /// <param name="directory">Project directory. When null, all project directories are searched.</param>
+    /// <param name="upToMessageId">
+    /// Copy the transcript up to and including this message UUID. When null, copy all of it.
+    /// </param>
+    /// <param name="title">
+    /// Title of the fork. When null or blank, the source title with " (fork)" added.
+    /// </param>
+    /// <returns>The UUID of the new session.</returns>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="sessionId"/> or <paramref name="upToMessageId"/> is not a valid UUID,
+    /// or <paramref name="upToMessageId"/> is not in the transcript.
+    /// </exception>
+    /// <exception cref="FileNotFoundException">No non-empty session file was found.</exception>
+    /// <exception cref="InvalidOperationException">The session has no messages to fork.</exception>
+    public static ForkSessionResult Fork(
+        string sessionId, string? directory = null, string? upToMessageId = null, string? title = null) =>
+        SessionFork.Fork(sessionId, directory, upToMessageId, title);
+
     private static string? ReadSessionFile(string sessionId, string? directory)
     {
         string fileName = $"{sessionId}.jsonl";
