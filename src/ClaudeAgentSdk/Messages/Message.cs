@@ -154,3 +154,38 @@ public sealed record TaskNotificationMessage : SystemMessage
     public string? ToolUseId { get; init; }
     public TaskUsage? Usage { get; init; }
 }
+
+/// <summary>
+/// A <c>task_updated</c> system message. It carries a patch of changed task fields.
+/// A task stopped with <c>TaskStop</c> can report its end only in this message, with no
+/// <see cref="TaskNotificationMessage"/>. Use <see cref="IsTerminal"/> to see if the task is done.
+/// </summary>
+public sealed record TaskUpdatedMessage : SystemMessage
+{
+    public required string TaskId { get; init; }
+
+    /// <summary>The <c>patch</c> object from the frame. An empty object when the frame has no object patch.</summary>
+    public required JsonElement Patch { get; init; }
+
+    /// <summary>The <c>patch.status</c> string, or null when the patch has no string status.</summary>
+    public string? Status { get; init; }
+
+    public string? SessionId { get; init; }
+    public string? Uuid { get; init; }
+
+    /// <summary>True when <see cref="Status"/> is in <see cref="TaskStatuses.Terminal"/>.</summary>
+    public bool IsTerminal => TaskStatuses.IsTerminal(Status);
+}
+
+/// <summary>
+/// Task status values that mean a task is done. The set covers both
+/// <see cref="TaskNotificationMessage"/>, which reports <c>stopped</c>, and
+/// <see cref="TaskUpdatedMessage"/>, which reports <c>killed</c>.
+/// </summary>
+public static class TaskStatuses
+{
+    public static IReadOnlySet<string> Terminal { get; } =
+        System.Collections.Frozen.FrozenSet.ToFrozenSet(["completed", "failed", "stopped", "killed"], StringComparer.Ordinal);
+
+    public static bool IsTerminal(string? status) => status is not null && Terminal.Contains(status);
+}

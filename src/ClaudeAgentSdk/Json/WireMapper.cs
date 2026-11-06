@@ -78,6 +78,7 @@ internal static class WireMapper
             "task_started" => MapTaskStarted(wire, rootClone),
             "task_progress" => MapTaskProgress(wire, rootClone),
             "task_notification" => MapTaskNotification(wire, rootClone),
+            "task_updated" => MapTaskUpdated(wire, rootClone),
             _ => new SystemMessage { Subtype = wire.Subtype, Data = rootClone }
         };
     }
@@ -132,6 +133,34 @@ internal static class WireMapper
             Usage = data.Usage
         };
     }
+
+    // Read field by field, because a lifecycle frame must never fail to parse.
+    // The CLI can leave out patch, uuid and session_id.
+    private static TaskUpdatedMessage MapTaskUpdated(SystemMessageWire wire, JsonElement rootClone)
+    {
+        JsonElement patch = rootClone.TryGetProperty("patch", out JsonElement p) && p.ValueKind == JsonValueKind.Object
+            ? p
+            : EmptyObject;
+        return new TaskUpdatedMessage
+        {
+            Subtype = wire.Subtype,
+            Data = rootClone,
+            TaskId = GetStringOrNull(rootClone, "task_id") ?? "",
+            Patch = patch,
+            Status = GetStringOrNull(patch, "status"),
+            SessionId = GetStringOrNull(rootClone, "session_id"),
+            Uuid = GetStringOrNull(rootClone, "uuid")
+        };
+    }
+
+    private static readonly JsonElement EmptyObject = JsonDocument.Parse("{}").RootElement.Clone();
+
+    private static string? GetStringOrNull(JsonElement obj, string name) =>
+        obj.ValueKind == JsonValueKind.Object
+        && obj.TryGetProperty(name, out JsonElement value)
+        && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
 
     private static object MapUserContent(JsonElement content) => content.ValueKind switch
     {
