@@ -196,6 +196,7 @@ public static class Claude
         ResultMessage r => $"[result] turns={r.NumTurns} error={r.IsError} cost=${r.TotalCostUsd:F4}",
         RateLimitEvent r => $"[rate_limit] {r.RateLimitInfo.Status}",
         StreamEvent => "[stream_event]",
+        ConversationResetMessage c => $"[conversation_reset] {c.NewConversationId}",
         _ => $"[{message.GetType().Name}]"
     };
 

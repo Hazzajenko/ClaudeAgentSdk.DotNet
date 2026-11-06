@@ -12,6 +12,7 @@ public static class ClaudeJsonOptions
 {
     /// <summary>
     /// Deserialize a JSON line from CLI stdout into a Message.
+    /// Returns null for a message type that this SDK does not know.
     /// </summary>
     public static Message? DeserializeMessage(string json)
     {
@@ -38,7 +39,24 @@ public static class ClaudeJsonOptions
                 root.Deserialize(ClaudeJsonContext.Default.RateLimitEventWire)!),
             "control_response" => new ControlResponseMessage(root.Clone()),
             "control_request" => new ControlRequestMessage(root.Clone()),
-            var unknown => throw new JsonException($"Unknown message type: '{unknown}'")
+            "conversation_reset" => new ConversationResetMessage
+            {
+                NewConversationId = GetRequiredString(root, "new_conversation_id", "conversation_reset"),
+                Uuid = GetRequiredString(root, "uuid", "conversation_reset"),
+                SessionId = GetRequiredString(root, "session_id", "conversation_reset"),
+            },
+            // A newer CLI can send types this SDK does not know. Skip them so the session continues.
+            _ => null
         };
+    }
+
+    private static string GetRequiredString(JsonElement root, string name, string messageType)
+    {
+        if (root.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.String)
+        {
+            return value.GetString()!;
+        }
+
+        throw new JsonException($"Missing required field '{name}' in {messageType} message");
     }
 }

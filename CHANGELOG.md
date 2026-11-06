@@ -7,6 +7,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- `ConversationResetMessage` with `NewConversationId`, `Uuid` and `SessionId`. The CLI sends a `conversation_reset` frame after `/clear`.
+
+### Fixed
+
+- A message with an unknown top-level `type` is now skipped and the session continues. Before, it threw `MessageParseException` and ended the session. `ClaudeJsonOptions.DeserializeMessage` returns `null` for an unknown type.
+
 ### Security
 
 - On Windows, a `.bat` or `.cmd` path from `CliPath` or `CLAUDE_CLI_PATH` now throws `CliConnectionException` before any process starts. Windows runs batch files through cmd.exe, which can run commands injected through CLI arguments. Use the native `claude.exe` instead.
