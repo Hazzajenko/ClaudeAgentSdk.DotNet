@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using ClaudeAgentSdk;
 using ClaudeAgentSdk.Transport;
@@ -465,16 +466,42 @@ public class CliArgsBuilderTests
     }
 
     [Test]
-    public async Task ExtraArgs_DashPrefixedValue_PrintMode_AddsOneEqualsToken()
+    public async Task MaxBudgetUsd_GermanCulture_UsesInvariantDecimalPoint()
     {
-        var args = CliArgsBuilder.BuildForPrintMode("hi", new ClaudeClientOptions
+        CultureInfo original = CultureInfo.CurrentCulture;
+        CultureInfo.CurrentCulture = new CultureInfo("de-DE");
+        try
         {
-            ExtraArgs = new Dictionary<string, string?> { ["custom-flag"] = "-x" }
-        });
+            var args = CliArgsBuilder.Build(new ClaudeClientOptions { MaxBudgetUsd = 0.5 });
 
-        await Assert.That(args).Contains("--custom-flag=-x");
-        await Assert.That(args).DoesNotContain("--custom-flag");
-        await Assert.That(args).DoesNotContain("-x");
+            int idx = args.IndexOf("--max-budget-usd");
+            await Assert.That(idx).IsGreaterThanOrEqualTo(0);
+            await Assert.That(args[idx + 1]).IsEqualTo("0.5");
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = original;
+        }
+    }
+
+    [Test]
+    public async Task IntegerArgs_CultureWithCustomNegativeSign_UseInvariantDigits()
+    {
+        CultureInfo original = CultureInfo.CurrentCulture;
+        var culture = (CultureInfo)CultureInfo.InvariantCulture.Clone();
+        culture.NumberFormat.NegativeSign = "~";
+        CultureInfo.CurrentCulture = culture;
+        try
+        {
+            var args = CliArgsBuilder.Build(new ClaudeClientOptions { MaxTurns = -1, MaxThinkingTokens = -2 });
+
+            await Assert.That(args[args.IndexOf("--max-turns") + 1]).IsEqualTo("-1");
+            await Assert.That(args[args.IndexOf("--max-thinking-tokens") + 1]).IsEqualTo("-2");
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = original;
+        }
     }
 
     [Test]

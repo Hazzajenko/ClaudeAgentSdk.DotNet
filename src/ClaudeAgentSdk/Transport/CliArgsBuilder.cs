@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
@@ -14,64 +15,6 @@ internal static class CliArgsBuilder
     /// cmd.exe reads these characters as syntax when the CLI runs through a .cmd shim.
     /// </summary>
     private static readonly char[] _windowsCmdMetacharacters = ['&', '|', '<', '>', '^', '%', '!', '"', '\r', '\n'];
-
-    /// <summary>
-    /// Build args for one-shot print mode (-p). Prompt goes on command line, no stdin needed.
-    /// Only adds flags that were explicitly set — avoids --system-prompt "" and --setting-sources ""
-    /// which can interfere with the CLI's internal tool handling.
-    /// </summary>
-    public static List<string> BuildForPrintMode(string prompt, ClaudeClientOptions options)
-    {
-        var args = new List<string>
-        {
-            "-p", prompt,
-            "--output-format", "stream-json",
-            "--verbose"
-        };
-
-        // Only add system-prompt if explicitly set (non-null, non-empty)
-        if (!string.IsNullOrEmpty(options.SystemPrompt))
-        {
-            args.Add("--system-prompt");
-            args.Add(options.SystemPrompt);
-        }
-
-        if (options.MaxTurns is not null)
-        {
-            args.Add("--max-turns");
-            args.Add(options.MaxTurns.Value.ToString());
-        }
-
-        if (options.Model is not null)
-        {
-            args.Add("--model");
-            args.Add(options.Model);
-        }
-
-        AddJsonSchemaArgs(args, options);
-
-        if (options.MaxBudgetUsd is not null)
-        {
-            args.Add("--max-budget-usd");
-            args.Add(options.MaxBudgetUsd.Value.ToString());
-        }
-
-        if (options.PermissionMode != PermissionMode.Default)
-        {
-            args.Add("--permission-mode");
-            args.Add(options.PermissionMode switch
-            {
-                PermissionMode.AcceptEdits => "acceptEdits",
-                PermissionMode.Plan => "plan",
-                PermissionMode.BypassPermissions => "bypassPermissions",
-                _ => "default"
-            });
-        }
-
-        AddExtraArgs(args, options);
-
-        return args;
-    }
 
     /// <summary>
     /// Build args for streaming mode (--input-format stream-json). Used by ClaudeClient.
@@ -159,13 +102,13 @@ internal static class CliArgsBuilder
         if (options.MaxTurns is not null)
         {
             args.Add("--max-turns");
-            args.Add(options.MaxTurns.Value.ToString());
+            args.Add(options.MaxTurns.Value.ToString(CultureInfo.InvariantCulture));
         }
 
         if (options.MaxBudgetUsd is not null)
         {
             args.Add("--max-budget-usd");
-            args.Add(options.MaxBudgetUsd.Value.ToString());
+            args.Add(options.MaxBudgetUsd.Value.ToString(CultureInfo.InvariantCulture));
         }
 
         // Thinking config takes precedence over MaxThinkingTokens
@@ -184,7 +127,7 @@ internal static class CliArgsBuilder
         if (resolvedThinkingTokens is not null)
         {
             args.Add("--max-thinking-tokens");
-            args.Add(resolvedThinkingTokens.Value.ToString());
+            args.Add(resolvedThinkingTokens.Value.ToString(CultureInfo.InvariantCulture));
         }
 
         if (options.PermissionMode != PermissionMode.Default)
