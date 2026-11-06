@@ -12,7 +12,7 @@ internal sealed record AssistantMessageWire
 
 internal sealed record AssistantMessageBodyWire
 {
-    public required List<ContentBlockWire> Content { get; init; }
+    public required List<JsonElement> Content { get; init; }
     public required string Model { get; init; }
     public Usage? Usage { get; init; }
 }

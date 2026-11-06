@@ -4,7 +4,7 @@ namespace ClaudeAgentSdk.Messages;
 
 /// <summary>
 /// Base type for content blocks within messages.
-/// Discriminated by the "type" field in JSON: "text", "thinking", "tool_use", "tool_result".
+/// Mapped from the "type" field in JSON. A block with an unknown type is dropped.
 /// </summary>
 public abstract record ContentBlock;
 

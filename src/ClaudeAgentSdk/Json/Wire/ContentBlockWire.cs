@@ -1,13 +1,10 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace ClaudeAgentSdk.Json.Wire;
 
-[JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
-[JsonDerivedType(typeof(TextBlockWire), "text")]
-[JsonDerivedType(typeof(ThinkingBlockWire), "thinking")]
-[JsonDerivedType(typeof(ToolUseBlockWire), "tool_use")]
-[JsonDerivedType(typeof(ToolResultBlockWire), "tool_result")]
+// Each record is read from one element of a "content" array.
+// WireMapper.MapContentBlocks reads the "type" field by hand and picks the record,
+// because STJ polymorphism throws on an unknown discriminator and cannot skip it.
 internal abstract record ContentBlockWire;
 
 internal sealed record TextBlockWire : ContentBlockWire
