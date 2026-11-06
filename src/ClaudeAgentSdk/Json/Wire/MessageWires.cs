@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using ClaudeAgentSdk.Messages;
 
 namespace ClaudeAgentSdk.Json.Wire;
@@ -8,6 +9,8 @@ internal sealed record AssistantMessageWire
     public required AssistantMessageBodyWire Message { get; init; }
     public string? ParentToolUseId { get; init; }
     public string? Error { get; init; }
+    public string? SessionId { get; init; }
+    public string? Uuid { get; init; }
 }
 
 internal sealed record AssistantMessageBodyWire
@@ -15,6 +18,8 @@ internal sealed record AssistantMessageBodyWire
     public required List<ContentBlockWire> Content { get; init; }
     public required string Model { get; init; }
     public Usage? Usage { get; init; }
+    public string? Id { get; init; }
+    public string? StopReason { get; init; }
 }
 
 internal sealed record UserMessageWire
@@ -23,6 +28,7 @@ internal sealed record UserMessageWire
     public string? Uuid { get; init; }
     public string? ParentToolUseId { get; init; }
     public JsonElement? ToolUseResult { get; init; }
+    public JsonElement? Origin { get; init; }
 }
 
 internal sealed record UserMessageBodyWire
@@ -49,6 +55,15 @@ internal sealed record ResultMessageWire
     public Usage? Usage { get; init; }
     public string? Result { get; init; }
     public JsonElement? StructuredOutput { get; init; }
+    [JsonPropertyName("modelUsage")]
+    public Dictionary<string, ModelUsage>? ModelUsage { get; init; }
+    public JsonElement? PermissionDenials { get; init; }
+    public DeferredToolUse? DeferredToolUse { get; init; }
+    public List<string>? Errors { get; init; }
+    public int? ApiErrorStatus { get; init; }
+    public string? TerminalReason { get; init; }
+    public string? Uuid { get; init; }
+    public JsonElement? Origin { get; init; }
 }
 
 internal sealed record StreamEventWire
@@ -63,5 +78,6 @@ internal sealed record RateLimitEventWire
 {
     public required string Uuid { get; init; }
     public required string SessionId { get; init; }
-    public required RateLimitInfoWire RateLimitInfo { get; init; }
+    // Kept as JSON so the mapper can give the whole object as RateLimitInfo.Raw.
+    public required JsonElement RateLimitInfo { get; init; }
 }

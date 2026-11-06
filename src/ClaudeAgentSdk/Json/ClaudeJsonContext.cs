@@ -15,10 +15,14 @@ namespace ClaudeAgentSdk.Json;
 [JsonSerializable(typeof(ResultMessageWire))]
 [JsonSerializable(typeof(StreamEventWire))]
 [JsonSerializable(typeof(RateLimitEventWire))]
+[JsonSerializable(typeof(RateLimitInfoWire))]
 [JsonSerializable(typeof(TaskStartedDataWire))]
 [JsonSerializable(typeof(TaskProgressDataWire))]
 [JsonSerializable(typeof(TaskNotificationDataWire))]
 [JsonSerializable(typeof(TaskUsage))]
+[JsonSerializable(typeof(ModelUsage))]
+[JsonSerializable(typeof(DeferredToolUse))]
+[JsonSerializable(typeof(MessageOrigin))]
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,

@@ -9,6 +9,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Message fields that the CLI sends and the SDK dropped before. `ResultMessage` has `ModelUsage`, `PermissionDenials`, `DeferredToolUse`, `Errors`, `ApiErrorStatus`, `TerminalReason`, `Uuid` and `Origin`. `AssistantMessage` has `MessageId`, `StopReason`, `SessionId` and `Uuid`. `UserMessage` has `Origin`. `RateLimitInfo.Raw` has the whole `rate_limit_info` object. The new types are `ModelUsage`, `DeferredToolUse` and `MessageOrigin`.
 - `ConversationResetMessage` with `NewConversationId`, `Uuid` and `SessionId`. The CLI sends a `conversation_reset` frame after `/clear`.
 - `McpToolAnnotations.Title` and `McpToolAnnotations.Idempotent`. An SDK MCP server writes them in `tools/list` as `title` and `idempotentHint`. The CLI `mcp_status` response has no such values, so `GetMcpStatusAsync` leaves them null.
 
