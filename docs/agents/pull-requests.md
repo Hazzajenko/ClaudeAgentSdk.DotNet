@@ -38,8 +38,12 @@ The line added under `[Unreleased]` in `CHANGELOG.md`, or "None, internal."
 ## Proof
 
 - `dotnet build`: pass with no warnings. The build treats warnings as errors, so AOT and trim warnings fail it.
-- `dotnet test`: <n> pass. Name the new tests.
+- `dotnet test`: <n> pass. Name the new and changed tests.
 ```
+
+## Proof
+
+Copy `<n>` from the `total:` line of the `dotnet test` output. Do not count tests by hand. Name each new and changed test. Give no other count, for example of new or changed tests. A reviewer can check the names in the diff, but cannot check a count.
 
 ## Choices and differences
 
