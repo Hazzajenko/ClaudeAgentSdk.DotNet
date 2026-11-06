@@ -138,7 +138,7 @@ internal sealed class SdkMcpRequestHandler
             result.WriteContentTo(w);
             w.WriteEndArray();
             if (result.IsError)
-                w.WriteBoolean("is_error", true);
+                w.WriteBoolean("isError", true);
             w.WriteEndObject(); // result
             w.WriteEndObject();
         }

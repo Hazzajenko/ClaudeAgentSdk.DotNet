@@ -94,7 +94,7 @@ public class SdkMcpRequestHandlerTests
         await Assert.That(content[0].GetProperty("type").GetString()).IsEqualTo("text");
         await Assert.That(content[0].GetProperty("text").GetString()).IsEqualTo("5");
 
-        // No is_error for success
+        await Assert.That(result.TryGetProperty("isError", out _)).IsFalse();
         await Assert.That(result.TryGetProperty("is_error", out _)).IsFalse();
     }
 
@@ -113,7 +113,8 @@ public class SdkMcpRequestHandlerTests
         var response = await handler.HandleAsync(msg.RootElement, CancellationToken.None);
 
         var result = response.GetProperty("result");
-        await Assert.That(result.GetProperty("is_error").GetBoolean()).IsTrue();
+        await Assert.That(result.GetProperty("isError").GetBoolean()).IsTrue();
+        await Assert.That(result.TryGetProperty("is_error", out _)).IsFalse();
         await Assert.That(result.GetProperty("content")[0].GetProperty("text").GetString()).IsEqualTo("something broke");
     }
 
