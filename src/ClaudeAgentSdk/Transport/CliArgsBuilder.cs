@@ -169,16 +169,20 @@ internal static class CliArgsBuilder
         }
 
         // Thinking config takes precedence over MaxThinkingTokens
-        int? resolvedThinkingTokens = options.MaxThinkingTokens;
-        if (options.Thinking is not null)
+        int? resolvedThinkingTokens = options.Thinking is null ? options.MaxThinkingTokens : null;
+        switch (options.Thinking)
         {
-            resolvedThinkingTokens = options.Thinking switch
-            {
-                ThinkingConfigAdaptive => 32_000,
-                ThinkingConfigEnabled e => e.BudgetTokens,
-                ThinkingConfigDisabled => 0,
-                _ => resolvedThinkingTokens
-            };
+            case ThinkingConfigAdaptive:
+                args.Add("--thinking");
+                args.Add("adaptive");
+                break;
+            case ThinkingConfigEnabled e:
+                resolvedThinkingTokens = e.BudgetTokens;
+                break;
+            case ThinkingConfigDisabled:
+                args.Add("--thinking");
+                args.Add("disabled");
+                break;
         }
 
         if (resolvedThinkingTokens is not null)

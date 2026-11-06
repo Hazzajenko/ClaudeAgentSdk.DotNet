@@ -193,16 +193,30 @@ public class CliArgsBuilderTests
     }
 
     [Test]
-    public async Task Thinking_Adaptive_DefaultsTo32000()
+    public async Task Thinking_Adaptive_SendsThinkingAdaptive()
     {
         var args = CliArgsBuilder.Build(new ClaudeClientOptions
         {
             Thinking = new ThinkingConfigAdaptive()
         });
 
-        int idx = args.IndexOf("--max-thinking-tokens");
+        int idx = args.IndexOf("--thinking");
         await Assert.That(idx).IsGreaterThanOrEqualTo(0);
-        await Assert.That(args[idx + 1]).IsEqualTo("32000");
+        await Assert.That(args[idx + 1]).IsEqualTo("adaptive");
+        await Assert.That(args).DoesNotContain("--max-thinking-tokens");
+    }
+
+    [Test]
+    public async Task Thinking_Adaptive_IgnoresMaxThinkingTokens()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions
+        {
+            MaxThinkingTokens = 5000,
+            Thinking = new ThinkingConfigAdaptive()
+        });
+
+        await Assert.That(args).Contains("--thinking");
+        await Assert.That(args).DoesNotContain("--max-thinking-tokens");
     }
 
     [Test]
@@ -219,16 +233,17 @@ public class CliArgsBuilderTests
     }
 
     [Test]
-    public async Task Thinking_Disabled_SetsZero()
+    public async Task Thinking_Disabled_SendsThinkingDisabled()
     {
         var args = CliArgsBuilder.Build(new ClaudeClientOptions
         {
             Thinking = new ThinkingConfigDisabled()
         });
 
-        int idx = args.IndexOf("--max-thinking-tokens");
+        int idx = args.IndexOf("--thinking");
         await Assert.That(idx).IsGreaterThanOrEqualTo(0);
-        await Assert.That(args[idx + 1]).IsEqualTo("0");
+        await Assert.That(args[idx + 1]).IsEqualTo("disabled");
+        await Assert.That(args).DoesNotContain("--max-thinking-tokens");
     }
 
     [Test]
