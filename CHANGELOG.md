@@ -7,6 +7,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- `ClaudeClient.GetContextUsageAsync` sends `get_context_usage` and returns a `ContextUsageResponse` with the same data as the CLI `/context` command. Categories and the scalar fields are typed. The open lists `MemoryFiles`, `McpTools`, `Agents`, `GridRows` and `DeferredBuiltinTools` are cloned `JsonElement` values. `Raw` has the full response.
+
 ### Security
 
 - On Windows, a `.bat` or `.cmd` path from `CliPath` or `CLAUDE_CLI_PATH` now throws `CliConnectionException` before any process starts. Windows runs batch files through cmd.exe, which can run commands injected through CLI arguments. Use the native `claude.exe` instead.
