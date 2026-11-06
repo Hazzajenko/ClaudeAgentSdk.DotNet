@@ -90,6 +90,33 @@ public static class Sessions
     }
 
     /// <summary>
+    /// List the subagent ids of a session. Subagent transcripts are at
+    /// <c>&lt;projectDir&gt;/&lt;sessionId&gt;/subagents/agent-&lt;agentId&gt;.jsonl</c>,
+    /// and can be in nested folders such as <c>workflows/&lt;runId&gt;/</c>.
+    /// </summary>
+    /// <returns>
+    /// The agent ids. Empty when <paramref name="sessionId"/> is not a valid UUID,
+    /// the session is not found, or the session has no subagents.
+    /// </returns>
+    public static IReadOnlyList<string> ListSubagents(string sessionId, string? directory = null) =>
+        SubagentTranscripts.List(sessionId, directory);
+
+    /// <summary>
+    /// Get the messages of a subagent transcript in chronological order. Each message has
+    /// <see cref="SessionMessage.ParentToolUseId"/> and <see cref="SessionMessage.ParentAgentId"/>
+    /// from the <c>agent-&lt;agentId&gt;.meta.json</c> file beside the transcript.
+    /// </summary>
+    /// <param name="sessionId">UUID of the parent session.</param>
+    /// <param name="agentId">Subagent id, as <see cref="ListSubagents"/> returns it.</param>
+    /// <param name="directory">Project directory. When null, all project directories are searched.</param>
+    /// <param name="limit">Maximum number of messages to return. Null or 0 returns all.</param>
+    /// <param name="offset">Number of messages to skip from the start.</param>
+    /// <returns>The messages. Empty when the session or the subagent is not found.</returns>
+    public static IReadOnlyList<SessionMessage> GetSubagentMessages(
+        string sessionId, string agentId, string? directory = null, int? limit = null, int offset = 0) =>
+        SubagentTranscripts.GetMessages(sessionId, agentId, directory, limit, offset);
+
+    /// <summary>
     /// Rename a session by appending a custom-title entry.
     /// </summary>
     public static void Rename(string sessionId, string title, string? directory = null) =>

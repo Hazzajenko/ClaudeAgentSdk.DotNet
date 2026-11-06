@@ -22,4 +22,19 @@ public sealed record SessionMessage
     public required string Uuid { get; init; }
     public required string SessionId { get; init; }
     public required JsonElement Message { get; init; }
+
+    /// <summary>
+    /// For a message from <see cref="Sessions.GetSubagentMessages"/>, the id of the Agent
+    /// <c>tool_use</c> block in the parent session that started the subagent. Null when the
+    /// subagent metadata file is missing or has no such id. Always null for
+    /// <see cref="Sessions.GetMessages"/>.
+    /// </summary>
+    public string? ParentToolUseId { get; init; }
+
+    /// <summary>
+    /// For a message from <see cref="Sessions.GetSubagentMessages"/>, the id of the subagent
+    /// that started this subagent. Null when the main session started it or the metadata is
+    /// missing. Always null for <see cref="Sessions.GetMessages"/>.
+    /// </summary>
+    public string? ParentAgentId { get; init; }
 }
