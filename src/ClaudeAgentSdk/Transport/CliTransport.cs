@@ -97,6 +97,9 @@ internal sealed class CliTransport : ITransport
             startInfo.WorkingDirectory = _workingDirectory;
         }
 
+        // The parent may run inside Claude Code. With CLAUDECODE set, the child CLI acts as a nested session.
+        startInfo.Environment.Remove("CLAUDECODE");
+
         if (_environmentVariables is not null)
         {
             foreach (var (key, value) in _environmentVariables)
