@@ -200,4 +200,45 @@ public class SdkMcpRequestHandlerTests
         await Assert.That(received).IsNotNull();
         await Assert.That(received!.Value).IsEqualTo(cts.Token);
     }
+
+    [Test]
+    [Arguments("""{"jsonrpc":"2.0","id":"req-abc","method":"initialize","params":{}}""")]
+    [Arguments("""{"jsonrpc":"2.0","id":"req-abc","method":"tools/list","params":{}}""")]
+    [Arguments("""{"jsonrpc":"2.0","id":"req-abc","method":"tools/call","params":{"name":"add","arguments":{"a":1,"b":2}}}""")]
+    [Arguments("""{"jsonrpc":"2.0","id":"req-abc","method":"tools/call","params":{"name":"missing","arguments":{}}}""")]
+    [Arguments("""{"jsonrpc":"2.0","id":"req-abc","method":"unknown/method","params":{}}""")]
+    public async Task StringId_IsEchoedUnchanged(string json)
+    {
+        var handler = new SdkMcpRequestHandler(CreateServerWithTools(CreateAddTool()));
+
+        using var msg = JsonDocument.Parse(json);
+        var response = await handler.HandleAsync(msg.RootElement, CancellationToken.None);
+
+        var id = response.GetProperty("id");
+        await Assert.That(id.ValueKind).IsEqualTo(JsonValueKind.String);
+        await Assert.That(id.GetString()).IsEqualTo("req-abc");
+    }
+
+    [Test]
+    public async Task LargeNumericId_IsEchoedUnchanged()
+    {
+        var handler = new SdkMcpRequestHandler(CreateServerWithTools());
+
+        using var msg = JsonDocument.Parse("""{"jsonrpc":"2.0","id":12345678901234,"method":"initialize","params":{}}""");
+        var response = await handler.HandleAsync(msg.RootElement, CancellationToken.None);
+
+        await Assert.That(response.GetProperty("id").GetRawText()).IsEqualTo("12345678901234");
+    }
+
+    [Test]
+    public async Task ToolsCall_MissingParams_ReturnsJsonRpcErrorWithId()
+    {
+        var handler = new SdkMcpRequestHandler(CreateServerWithTools());
+
+        using var msg = JsonDocument.Parse("""{"jsonrpc":"2.0","id":"x","method":"tools/call"}""");
+        var response = await handler.HandleAsync(msg.RootElement, CancellationToken.None);
+
+        await Assert.That(response.GetProperty("id").GetString()).IsEqualTo("x");
+        await Assert.That(response.GetProperty("error").GetProperty("code").GetInt32()).IsEqualTo(-32603);
+    }
 }

@@ -19,11 +19,13 @@ internal sealed class SdkMcpRequestHandler
 
     public async Task<JsonElement> HandleAsync(JsonElement message, CancellationToken cancellationToken)
     {
-        string? method = message.TryGetProperty("method", out var m) ? m.GetString() : null;
-        int? id = message.TryGetProperty("id", out var idProp) ? idProp.GetInt32() : null;
+        // JSON-RPC allows a string or a number id. Echo it back as the raw element.
+        JsonElement? id = message.TryGetProperty("id", out var idProp) ? idProp : null;
 
         try
         {
+            string? method = message.TryGetProperty("method", out var m) ? m.GetString() : null;
+
             return method switch
             {
                 "initialize" => BuildInitializeResponse(id),
@@ -39,7 +41,7 @@ internal sealed class SdkMcpRequestHandler
         }
     }
 
-    private JsonElement BuildInitializeResponse(int? id)
+    private JsonElement BuildInitializeResponse(JsonElement? id)
     {
         using var stream = new MemoryStream();
         using (var w = new Utf8JsonWriter(stream))
@@ -63,7 +65,7 @@ internal sealed class SdkMcpRequestHandler
         return ParseElement(stream);
     }
 
-    private JsonElement BuildToolsListResponse(int? id)
+    private JsonElement BuildToolsListResponse(JsonElement? id)
     {
         using var stream = new MemoryStream();
         using (var w = new Utf8JsonWriter(stream))
@@ -105,7 +107,7 @@ internal sealed class SdkMcpRequestHandler
     }
 
     private async Task<JsonElement> HandleToolCallAsync(
-        JsonElement message, int? id, CancellationToken cancellationToken)
+        JsonElement message, JsonElement? id, CancellationToken cancellationToken)
     {
         var @params = message.GetProperty("params");
         string toolName = @params.GetProperty("name").GetString()!;
@@ -143,7 +145,7 @@ internal sealed class SdkMcpRequestHandler
         return ParseElement(stream);
     }
 
-    private static JsonElement BuildEmptyResult(int? id)
+    private static JsonElement BuildEmptyResult(JsonElement? id)
     {
         using var stream = new MemoryStream();
         using (var w = new Utf8JsonWriter(stream))
@@ -158,7 +160,7 @@ internal sealed class SdkMcpRequestHandler
         return ParseElement(stream);
     }
 
-    private static JsonElement BuildMethodNotFoundError(int? id, string method)
+    private static JsonElement BuildMethodNotFoundError(JsonElement? id, string method)
     {
         using var stream = new MemoryStream();
         using (var w = new Utf8JsonWriter(stream))
@@ -175,7 +177,7 @@ internal sealed class SdkMcpRequestHandler
         return ParseElement(stream);
     }
 
-    private static JsonElement BuildInternalError(int? id, string message)
+    private static JsonElement BuildInternalError(JsonElement? id, string message)
     {
         using var stream = new MemoryStream();
         using (var w = new Utf8JsonWriter(stream))
@@ -192,10 +194,13 @@ internal sealed class SdkMcpRequestHandler
         return ParseElement(stream);
     }
 
-    private static void WriteId(Utf8JsonWriter w, int? id)
+    private static void WriteId(Utf8JsonWriter w, JsonElement? id)
     {
         if (id is { } value)
-            w.WriteNumber("id", value);
+        {
+            w.WritePropertyName("id");
+            value.WriteTo(w);
+        }
     }
 
     private static JsonElement ParseElement(MemoryStream stream)

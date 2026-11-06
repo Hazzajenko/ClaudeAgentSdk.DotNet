@@ -14,6 +14,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Fixed
 
 - A message with an unknown top-level `type` is now skipped and the session continues. Before, it threw `MessageParseException` and ended the session. `ClaudeJsonOptions.DeserializeMessage` returns `null` for an unknown type.
+- An SDK MCP server now echoes a JSON-RPC `id` back unchanged. Before, a string `id` threw before the request was handled.
 
 ### Security
 
