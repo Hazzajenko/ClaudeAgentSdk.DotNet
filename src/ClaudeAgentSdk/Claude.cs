@@ -206,6 +206,8 @@ public static class Claude
             ThinkingBlock t => $"thinking({t.Thinking.Length}ch)",
             ToolUseBlock t => $"tool_use:{t.Name}",
             ToolResultBlock t => $"tool_result:{t.ToolUseId}",
+            ServerToolUseBlock t => $"server_tool_use:{t.Name}",
+            ServerToolResultBlock t => $"server_tool_result:{t.ToolUseId}",
             _ => b.GetType().Name
         }))}";
 

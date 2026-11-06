@@ -7,6 +7,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- `ServerToolUseBlock` and `ServerToolResultBlock` content blocks. `server_tool_use` maps to `ServerToolUseBlock`. `advisor_tool_result`, `web_search_tool_result`, `web_fetch_tool_result`, `code_execution_tool_result`, `bash_code_execution_tool_result`, `text_editor_code_execution_tool_result` and `tool_search_tool_result` map to `ServerToolResultBlock`.
+
+### Fixed
+
+- An assistant or user message with an unknown content block type now parses without that block. Before, the parse threw and ended the stream.
+
 ### Security
 
 - On Windows, a `.bat` or `.cmd` path from `CliPath` or `CLAUDE_CLI_PATH` now throws `CliConnectionException` before any process starts. Windows runs batch files through cmd.exe, which can run commands injected through CLI arguments. Use the native `claude.exe` instead.

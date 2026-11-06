@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using ClaudeAgentSdk.Json.Wire;
 using ClaudeAgentSdk.Messages;
 
@@ -6,18 +7,72 @@ namespace ClaudeAgentSdk.Json;
 
 internal static class WireMapper
 {
-    public static ContentBlock MapContentBlock(ContentBlockWire wire) => wire switch
+    // Server tool result types from the Messages API. Each has tool_use_id and content.
+    private static readonly HashSet<string> ServerToolResultTypes =
+    [
+        "advisor_tool_result",
+        "web_search_tool_result",
+        "web_fetch_tool_result",
+        "code_execution_tool_result",
+        "bash_code_execution_tool_result",
+        "text_editor_code_execution_tool_result",
+        "tool_search_tool_result",
+    ];
+
+    /// <summary>
+    /// Maps one element of a "content" array. Returns null for an unknown "type",
+    /// so a new block type from the CLI does not end the stream.
+    /// </summary>
+    public static ContentBlock? MapContentBlock(JsonElement element)
     {
-        TextBlockWire t => new TextBlock { Text = t.Text },
-        ThinkingBlockWire t => new ThinkingBlock { Thinking = t.Thinking, Signature = t.Signature },
-        ToolUseBlockWire t => new ToolUseBlock { Id = t.Id, Name = t.Name, Input = t.Input },
-        ToolResultBlockWire t => new ToolResultBlock { ToolUseId = t.ToolUseId, Content = t.Content, IsError = t.IsError },
-        _ => throw new JsonException($"Unknown content block wire type: {wire.GetType().Name}")
-    };
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            throw new JsonException($"Content block must be an object, got {element.ValueKind}");
+        }
+
+        if (!element.TryGetProperty("type", out JsonElement typeProp) || typeProp.ValueKind != JsonValueKind.String)
+        {
+            throw new JsonException("Content block missing 'type' field");
+        }
+
+        string type = typeProp.GetString()!;
+        switch (type)
+        {
+            case "text":
+                TextBlockWire text = Read(element, ClaudeJsonContext.Default.TextBlockWire);
+                return new TextBlock { Text = text.Text };
+            case "thinking":
+                ThinkingBlockWire thinking = Read(element, ClaudeJsonContext.Default.ThinkingBlockWire);
+                return new ThinkingBlock { Thinking = thinking.Thinking, Signature = thinking.Signature };
+            case "tool_use":
+                ToolUseBlockWire toolUse = Read(element, ClaudeJsonContext.Default.ToolUseBlockWire);
+                return new ToolUseBlock { Id = toolUse.Id, Name = toolUse.Name, Input = toolUse.Input };
+            case "tool_result":
+                ToolResultBlockWire toolResult = Read(element, ClaudeJsonContext.Default.ToolResultBlockWire);
+                return new ToolResultBlock { ToolUseId = toolResult.ToolUseId, Content = toolResult.Content, IsError = toolResult.IsError };
+            case "server_tool_use":
+                ServerToolUseBlockWire serverUse = Read(element, ClaudeJsonContext.Default.ServerToolUseBlockWire);
+                return new ServerToolUseBlock { Id = serverUse.Id, Name = serverUse.Name, Input = serverUse.Input };
+            case var _ when ServerToolResultTypes.Contains(type):
+                ServerToolResultBlockWire serverResult = Read(element, ClaudeJsonContext.Default.ServerToolResultBlockWire);
+                return new ServerToolResultBlock { ToolUseId = serverResult.ToolUseId, Content = serverResult.Content };
+            default:
+                return null;
+        }
+    }
+
+    private static IReadOnlyList<ContentBlock> MapContentBlocks(IEnumerable<JsonElement> elements) => elements
+        .Select(MapContentBlock)
+        .OfType<ContentBlock>()
+        .ToList()
+        .AsReadOnly();
+
+    private static T Read<T>(JsonElement element, JsonTypeInfo<T> typeInfo) =>
+        element.Deserialize(typeInfo) ?? throw new JsonException($"Content block deserialized to null: {typeof(T).Name}");
 
     public static AssistantMessage MapAssistantMessage(AssistantMessageWire wire) => new()
     {
-        Content = wire.Message.Content.Select(MapContentBlock).ToList().AsReadOnly(),
+        Content = MapContentBlocks(wire.Message.Content),
         Model = wire.Message.Model,
         ParentToolUseId = wire.ParentToolUseId,
         Error = wire.Error,
@@ -136,11 +191,7 @@ internal static class WireMapper
     private static object MapUserContent(JsonElement content) => content.ValueKind switch
     {
         JsonValueKind.String => content.GetString()!,
-        JsonValueKind.Array => content
-            .Deserialize(ClaudeJsonContext.Default.ListContentBlockWire)!
-            .Select(MapContentBlock)
-            .ToList()
-            .AsReadOnly(),
+        JsonValueKind.Array => MapContentBlocks(content.EnumerateArray()),
         _ => throw new JsonException($"UserMessage.Content must be string or array, got {content.ValueKind}")
     };
 }
