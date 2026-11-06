@@ -238,6 +238,15 @@ public sealed class ClaudeClient : IAsyncDisposable
         return Mcp.McpStatusParser.Parse(result);
     }
 
+    /// <summary>
+    /// Gets the context window usage by category. It has the same data as the CLI <c>/context</c> command.
+    /// </summary>
+    public async Task<ContextUsageResponse> GetContextUsageAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await SendSimpleControlRequestAsync("""{"subtype":"get_context_usage"}""", cancellationToken);
+        return ContextUsageParser.Parse(result);
+    }
+
     private async Task<JsonElement> SendSimpleControlRequestAsync(string requestJson, CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
