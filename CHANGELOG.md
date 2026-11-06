@@ -7,6 +7,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** `AgentDefinition.Model` is now a `string?` that takes a model alias or a full model id such as `claude-opus-4-5-20251101`. `AgentModel` is now a static class of `const string` aliases. `AgentDefinition` also has the new fields `DisallowedTools`, `MaxTurns`, `InitialPrompt`, `Background`, `Effort`, `PermissionMode` and `InlineMcpServers`. They go to the CLI in the initialize request with the keys that the Python SDK uses. Migration: `Model = AgentModel.Sonnet` compiles as before. Change a variable of type `AgentModel` or a `switch` on its enum values to `string`, and recompile dependent packages.
+
 ### Security
 
 - On Windows, a `.bat` or `.cmd` path from `CliPath` or `CLAUDE_CLI_PATH` now throws `CliConnectionException` before any process starts. Windows runs batch files through cmd.exe, which can run commands injected through CLI arguments. Use the native `claude.exe` instead.

@@ -1,4 +1,6 @@
 using System.Text.Json;
+using ClaudeAgentSdk.Agents;
+using ClaudeAgentSdk.Mcp;
 using ClaudeAgentSdk.Messages;
 using ClaudeAgentSdk.Transport;
 
@@ -100,5 +102,68 @@ public class TransportInjectionTests
         await Assert.That(messages.Count).IsGreaterThanOrEqualTo(1);
         var result = messages.OfType<ResultMessage>().First();
         await Assert.That(result.Result).IsEqualTo("injected");
+    }
+
+    [Test]
+    public async Task ClaudeClient_Initialize_SendsAgentDefinitionFields()
+    {
+        var contentMessages = """
+            {"type":"result","subtype":"success","duration_ms":0,"duration_api_ms":0,"is_error":false,"num_turns":0,"session_id":"s1"}
+            """;
+
+        var transport = CreateMockWithFlow(contentMessages);
+        string? initJson = null;
+        var respond = transport.OnWrite;
+        transport.OnWrite = json =>
+        {
+            if (json.Contains("\"subtype\":\"initialize\""))
+            {
+                initJson = json;
+            }
+            respond!(json);
+        };
+
+        var options = new ClaudeClientOptions
+        {
+            Agents = new Dictionary<string, AgentDefinition>
+            {
+                ["reviewer"] = new()
+                {
+                    Description = "Reviews code",
+                    Prompt = "Review",
+                    Model = "claude-opus-4-5-20251101",
+                    DisallowedTools = ["Bash"],
+                    MaxTurns = 3,
+                    InitialPrompt = "Begin",
+                    Background = true,
+                    Effort = EffortLevel.Low,
+                    PermissionMode = PermissionMode.Plan,
+                    McpServers = ["shared"],
+                    InlineMcpServers = new Dictionary<string, McpServerConfig>
+                    {
+                        ["local"] = new McpStdioServerConfig("node")
+                    }
+                }
+            }
+        };
+
+        await using var client = new ClaudeClient(options: options, transport: transport);
+        await foreach (var _ in client.SendAsync("test"))
+        {
+        }
+
+        await Assert.That(initJson).IsNotNull();
+        using var doc = JsonDocument.Parse(initJson!);
+        JsonElement agent = doc.RootElement.GetProperty("request").GetProperty("agents").GetProperty("reviewer");
+        await Assert.That(agent.GetProperty("model").GetString()).IsEqualTo("claude-opus-4-5-20251101");
+        await Assert.That(agent.GetProperty("disallowedTools")[0].GetString()).IsEqualTo("Bash");
+        await Assert.That(agent.GetProperty("maxTurns").GetInt32()).IsEqualTo(3);
+        await Assert.That(agent.GetProperty("initialPrompt").GetString()).IsEqualTo("Begin");
+        await Assert.That(agent.GetProperty("background").GetBoolean()).IsTrue();
+        await Assert.That(agent.GetProperty("effort").GetString()).IsEqualTo("low");
+        await Assert.That(agent.GetProperty("permissionMode").GetString()).IsEqualTo("plan");
+        JsonElement servers = agent.GetProperty("mcpServers");
+        await Assert.That(servers[0].GetString()).IsEqualTo("shared");
+        await Assert.That(servers[1].GetProperty("local").GetProperty("command").GetString()).IsEqualTo("node");
     }
 }
