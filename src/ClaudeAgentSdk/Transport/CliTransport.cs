@@ -115,9 +115,10 @@ internal sealed class CliTransport : ITransport
         }
 
         // The inherited PWD names the parent's directory. Tools in the child read PWD, so it must match the working directory.
-        if (_workingDirectory is not null)
+        // ProcessStartInfo resolves a relative directory against the parent's directory and ignores an empty one. PWD does the same.
+        if (!string.IsNullOrEmpty(_workingDirectory))
         {
-            startInfo.Environment["PWD"] = _workingDirectory;
+            startInfo.Environment["PWD"] = Path.GetFullPath(_workingDirectory);
         }
 
         return startInfo;

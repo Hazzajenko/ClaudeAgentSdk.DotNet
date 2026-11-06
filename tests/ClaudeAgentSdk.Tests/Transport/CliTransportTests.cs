@@ -88,6 +88,27 @@ public class CliTransportTests
     }
 
     [Test]
+    public async Task BuildStartInfo_RelativeWorkingDirectory_SetsPwdToFullPath()
+    {
+        var transport = new CliTransport("claude", [], workingDirectory: "sub");
+
+        var startInfo = transport.BuildStartInfo();
+
+        await Assert.That(startInfo.Environment["PWD"]).IsEqualTo(Path.GetFullPath("sub"));
+    }
+
+    [Test]
+    public async Task BuildStartInfo_EmptyWorkingDirectory_KeepsUserPwd()
+    {
+        var env = new Dictionary<string, string> { ["PWD"] = "/from/user" };
+        var transport = new CliTransport("claude", [], workingDirectory: "", environmentVariables: env);
+
+        var startInfo = transport.BuildStartInfo();
+
+        await Assert.That(startInfo.Environment["PWD"]).IsEqualTo("/from/user");
+    }
+
+    [Test]
     public async Task BuildStartInfo_NoWorkingDirectory_KeepsUserPwd()
     {
         var env = new Dictionary<string, string> { ["PWD"] = "/from/user" };
