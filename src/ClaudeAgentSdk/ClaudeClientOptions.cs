@@ -60,7 +60,13 @@ public enum PermissionMode
     Default,
     AcceptEdits,
     Plan,
-    BypassPermissions
+    BypassPermissions,
+
+    /// <summary>Do not prompt. Deny each tool call that is not pre-approved.</summary>
+    DontAsk,
+
+    /// <summary>A model classifier approves or denies each tool call.</summary>
+    Auto
 }
 
 public enum EffortLevel
@@ -68,7 +74,13 @@ public enum EffortLevel
     Low,
     Medium,
     High,
-    Max
+    Max,
+
+    /// <summary>
+    /// Between <see cref="High"/> and <see cref="Max"/>. It is last in the enum so that
+    /// the number of each older value does not change.
+    /// </summary>
+    XHigh
 }
 
 public abstract record ThinkingConfig;

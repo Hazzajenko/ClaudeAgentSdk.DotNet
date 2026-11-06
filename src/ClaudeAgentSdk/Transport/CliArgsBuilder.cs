@@ -59,13 +59,7 @@ internal static class CliArgsBuilder
         if (options.PermissionMode != PermissionMode.Default)
         {
             args.Add("--permission-mode");
-            args.Add(options.PermissionMode switch
-            {
-                PermissionMode.AcceptEdits => "acceptEdits",
-                PermissionMode.Plan => "plan",
-                PermissionMode.BypassPermissions => "bypassPermissions",
-                _ => "default"
-            });
+            args.Add(PermissionModeWire.ToWire(options.PermissionMode));
         }
 
         AddExtraArgs(args, options);
@@ -190,13 +184,7 @@ internal static class CliArgsBuilder
         if (options.PermissionMode != PermissionMode.Default)
         {
             args.Add("--permission-mode");
-            args.Add(options.PermissionMode switch
-            {
-                PermissionMode.AcceptEdits => "acceptEdits",
-                PermissionMode.Plan => "plan",
-                PermissionMode.BypassPermissions => "bypassPermissions",
-                _ => "default"
-            });
+            args.Add(PermissionModeWire.ToWire(options.PermissionMode));
         }
 
         if (options.CanUseTool is not null)
@@ -239,6 +227,7 @@ internal static class CliArgsBuilder
                 EffortLevel.Low => "low",
                 EffortLevel.Medium => "medium",
                 EffortLevel.High => "high",
+                EffortLevel.XHigh => "xhigh",
                 EffortLevel.Max => "max",
                 _ => "medium"
             });
