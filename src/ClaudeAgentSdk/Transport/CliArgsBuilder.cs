@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
@@ -101,13 +102,13 @@ internal static class CliArgsBuilder
         if (options.MaxTurns is not null)
         {
             args.Add("--max-turns");
-            args.Add(options.MaxTurns.Value.ToString());
+            args.Add(options.MaxTurns.Value.ToString(CultureInfo.InvariantCulture));
         }
 
         if (options.MaxBudgetUsd is not null)
         {
             args.Add("--max-budget-usd");
-            args.Add(options.MaxBudgetUsd.Value.ToString());
+            args.Add(options.MaxBudgetUsd.Value.ToString(CultureInfo.InvariantCulture));
         }
 
         // Thinking config takes precedence over MaxThinkingTokens
@@ -126,7 +127,7 @@ internal static class CliArgsBuilder
         if (resolvedThinkingTokens is not null)
         {
             args.Add("--max-thinking-tokens");
-            args.Add(resolvedThinkingTokens.Value.ToString());
+            args.Add(resolvedThinkingTokens.Value.ToString(CultureInfo.InvariantCulture));
         }
 
         if (options.PermissionMode != PermissionMode.Default)
