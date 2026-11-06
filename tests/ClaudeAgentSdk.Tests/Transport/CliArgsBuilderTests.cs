@@ -73,6 +73,32 @@ public class CliArgsBuilderTests
     }
 
     [Test]
+    [Arguments(PermissionMode.AcceptEdits, "acceptEdits")]
+    [Arguments(PermissionMode.Plan, "plan")]
+    [Arguments(PermissionMode.BypassPermissions, "bypassPermissions")]
+    public async Task PermissionMode_MapsToCliString(PermissionMode mode, string expected)
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions { PermissionMode = mode });
+
+        int idx = args.IndexOf("--permission-mode");
+        await Assert.That(idx).IsGreaterThanOrEqualTo(0);
+        await Assert.That(args[idx + 1]).IsEqualTo(expected);
+    }
+
+    [Test]
+    [Arguments(PermissionMode.AcceptEdits, "acceptEdits")]
+    [Arguments(PermissionMode.Plan, "plan")]
+    [Arguments(PermissionMode.BypassPermissions, "bypassPermissions")]
+    public async Task PermissionMode_PrintMode_MapsToCliString(PermissionMode mode, string expected)
+    {
+        var args = CliArgsBuilder.BuildForPrintMode("hi", new ClaudeClientOptions { PermissionMode = mode });
+
+        int idx = args.IndexOf("--permission-mode");
+        await Assert.That(idx).IsGreaterThanOrEqualTo(0);
+        await Assert.That(args[idx + 1]).IsEqualTo(expected);
+    }
+
+    [Test]
     public async Task SystemPrompt_SetExplicitly()
     {
         var args = CliArgsBuilder.Build(new ClaudeClientOptions

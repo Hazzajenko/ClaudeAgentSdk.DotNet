@@ -199,13 +199,7 @@ public sealed class ClaudeClient : IAsyncDisposable
 
     public async Task SetPermissionModeAsync(PermissionMode mode, CancellationToken cancellationToken = default)
     {
-        string modeStr = mode switch
-        {
-            PermissionMode.AcceptEdits => "acceptEdits",
-            PermissionMode.Plan => "plan",
-            PermissionMode.BypassPermissions => "bypassPermissions",
-            _ => "default"
-        };
+        string modeStr = PermissionModeWire.ToWire(mode);
         await SendSimpleControlRequestAsync($$$"""{"subtype":"set_permission_mode","mode":"{{{modeStr}}}"}""", cancellationToken);
     }
 
