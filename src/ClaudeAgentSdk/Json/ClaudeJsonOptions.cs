@@ -39,6 +39,11 @@ public static class ClaudeJsonOptions
                 root.Deserialize(ClaudeJsonContext.Default.RateLimitEventWire)!),
             "control_response" => new ControlResponseMessage(root.Clone()),
             "control_request" => new ControlRequestMessage(root.Clone()),
+            // A cancel with no request_id names nothing to cancel, so skip it.
+            "control_cancel_request" =>
+                root.TryGetProperty("request_id", out JsonElement cancelId) && cancelId.ValueKind == JsonValueKind.String
+                    ? new ControlCancelRequestMessage(cancelId.GetString()!)
+                    : null,
             "conversation_reset" => new ConversationResetMessage
             {
                 NewConversationId = GetRequiredString(root, "new_conversation_id", "conversation_reset"),

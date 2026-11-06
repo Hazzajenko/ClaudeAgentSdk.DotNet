@@ -17,6 +17,7 @@ internal sealed class ControlProtocolHandler
     private readonly ITransport _transport;
     private readonly SemaphoreSlim _writeLock = new(1, 1);
     private readonly ConcurrentDictionary<string, TaskCompletionSource<JsonElement>> _pendingResponses = new();
+    private readonly ConcurrentDictionary<string, CancellationTokenSource> _inboundRequests = new();
     private int _requestCounter;
 
     /// <summary>
@@ -106,6 +107,47 @@ internal sealed class ControlProtocolHandler
         if (!root.TryGetProperty("request", out var request)) return;
         string? subtype = request.TryGetProperty("subtype", out var st) ? st.GetString() : null;
 
+        // Register before the first await, so a control_cancel_request read next finds this request.
+        var cliCancel = new CancellationTokenSource();
+        _inboundRequests[requestId] = cliCancel;
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, cliCancel.Token);
+
+        try
+        {
+            await DispatchControlRequestAsync(requestId, request, subtype, cliCancel.Token, linked.Token);
+        }
+        finally
+        {
+            _inboundRequests.TryRemove(new KeyValuePair<string, CancellationTokenSource>(requestId, cliCancel));
+            cliCancel.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Cancel an inbound control request after a control_cancel_request from the CLI.
+    /// The CLI has given up on the request, so no control_response is written for it.
+    /// </summary>
+    public void CancelInboundRequest(string requestId)
+    {
+        if (!_inboundRequests.TryRemove(requestId, out var cliCancel)) return;
+
+        try
+        {
+            cliCancel.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // The request finished while the cancel arrived. Nothing is left to cancel.
+        }
+    }
+
+    private async Task DispatchControlRequestAsync(
+        string requestId,
+        JsonElement request,
+        string? subtype,
+        CancellationToken cliCancelToken,
+        CancellationToken cancellationToken)
+    {
         try
         {
             JsonElement responseData;
@@ -149,10 +191,16 @@ internal sealed class ControlProtocolHandler
                 responseData = default;
             }
 
+            // The CLI cancelled this request and does not wait for a reply.
+            // A callback can ignore its token and still return, so check again here.
+            if (cliCancelToken.IsCancellationRequested) return;
+
             await WriteControlResponseAsync(requestId, responseData, cancellationToken);
         }
         catch (Exception ex)
         {
+            if (cliCancelToken.IsCancellationRequested) return;
+
             await WriteControlErrorAsync(requestId, ex.Message, cancellationToken);
         }
     }

@@ -430,6 +430,10 @@ public sealed class ClaudeClient : IAsyncDisposable
                         _ = _controlHandler!.HandleControlRequestAsync(controlRequest.RawElement, cancellationToken);
                         break;
 
+                    case ControlCancelRequestMessage cancelRequest:
+                        _controlHandler!.CancelInboundRequest(cancelRequest.RequestId);
+                        break;
+
                     default:
                         await _messageChannel!.Writer.WriteAsync(message, cancellationToken);
                         break;

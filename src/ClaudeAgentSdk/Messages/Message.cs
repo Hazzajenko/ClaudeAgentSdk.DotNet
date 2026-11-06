@@ -129,6 +129,7 @@ public sealed record ConversationResetMessage : Message
 // Internal control protocol messages — not yielded to public API consumers
 internal sealed record ControlResponseMessage(JsonElement RawElement) : Message;
 internal sealed record ControlRequestMessage(JsonElement RawElement) : Message;
+internal sealed record ControlCancelRequestMessage(string RequestId) : Message;
 
 public readonly record struct TaskUsage(int TotalTokens, int ToolUses, int DurationMs);
 

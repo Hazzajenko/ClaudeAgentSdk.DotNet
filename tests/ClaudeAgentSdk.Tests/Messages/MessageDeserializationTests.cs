@@ -691,6 +691,27 @@ public class MessageDeserializationTests
     }
 
     [Test]
+    public async Task ControlCancelRequest_ReadsRequestId()
+    {
+        const string json = """{"type":"control_cancel_request","request_id":"req_3"}""";
+
+        var msg = ClaudeJsonOptions.DeserializeMessage(json);
+
+        await Assert.That(msg).IsTypeOf<ControlCancelRequestMessage>();
+        await Assert.That(((ControlCancelRequestMessage)msg!).RequestId).IsEqualTo("req_3");
+    }
+
+    [Test]
+    public async Task ControlCancelRequest_WithoutRequestId_IsSkipped()
+    {
+        const string json = """{"type":"control_cancel_request"}""";
+
+        var msg = ClaudeJsonOptions.DeserializeMessage(json);
+
+        await Assert.That(msg).IsNull();
+    }
+
+    [Test]
     public async Task ExtraUnknownProperties_AreIgnored()
     {
         // CLI may add new fields in future versions — they should be silently ignored

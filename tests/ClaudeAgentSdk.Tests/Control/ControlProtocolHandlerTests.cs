@@ -151,6 +151,125 @@ public class ControlProtocolHandlerTests
         await Assert.That(pre.SessionId).IsEqualTo("sess-1");
     }
 
+    private const string HookRequestJson = """
+        {
+            "request_id": "req_1",
+            "request": {
+                "subtype": "hook_callback",
+                "callback_id": "hook_0",
+                "input": {
+                    "hook_event_name": "PreToolUse",
+                    "session_id": "sess-1",
+                    "transcript_path": "/tmp/t.jsonl",
+                    "cwd": "/home/user",
+                    "tool_name": "Bash",
+                    "tool_input": {"command": "echo hello"},
+                    "tool_use_id": "toolu_01"
+                }
+            }
+        }
+        """;
+
+    [Test]
+    public async Task CancelInboundRequest_CancelsHookToken_AndWritesNoResponse()
+    {
+        var transport = Substitute.For<ITransport>();
+        var writtenJson = new List<string>();
+        transport.WriteAsync(Arg.Do<string>(s => writtenJson.Add(s)), Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        var handler = new ControlProtocolHandler(transport);
+
+        var hookStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        bool tokenCancelled = false;
+        handler.OnHookCallback = async (_, _, ct) =>
+        {
+            hookStarted.SetResult();
+            try
+            {
+                await Task.Delay(Timeout.Infinite, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                tokenCancelled = ct.IsCancellationRequested;
+                throw;
+            }
+            return HookOutput.Empty;
+        };
+
+        using var requestDoc = JsonDocument.Parse(HookRequestJson);
+        Task handling = handler.HandleControlRequestAsync(requestDoc.RootElement, CancellationToken.None);
+        await hookStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        handler.CancelInboundRequest("req_1");
+        await handling.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await Assert.That(tokenCancelled).IsTrue();
+        await Assert.That(writtenJson.Count).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task CancelInboundRequest_HookIgnoresToken_WritesNoResponse()
+    {
+        var transport = Substitute.For<ITransport>();
+        var writtenJson = new List<string>();
+        transport.WriteAsync(Arg.Do<string>(s => writtenJson.Add(s)), Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        var handler = new ControlProtocolHandler(transport);
+
+        var hookStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        handler.OnHookCallback = async (_, _, _) =>
+        {
+            hookStarted.SetResult();
+            await release.Task;
+            return HookOutput.Empty;
+        };
+
+        using var requestDoc = JsonDocument.Parse(HookRequestJson);
+        Task handling = handler.HandleControlRequestAsync(requestDoc.RootElement, CancellationToken.None);
+        await hookStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        handler.CancelInboundRequest("req_1");
+        release.SetResult();
+        await handling.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await Assert.That(writtenJson.Count).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task CancelInboundRequest_UnknownRequestId_DoesNothing()
+    {
+        var transport = Substitute.For<ITransport>();
+        var handler = new ControlProtocolHandler(transport);
+
+        handler.CancelInboundRequest("req_missing");
+
+        await Assert.That(transport.ReceivedCalls().Count()).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task HandleControlRequestAsync_HookThrowsCancellation_WithoutCancelRequest_WritesError()
+    {
+        // Only a control_cancel_request suppresses the reply. Other cancellation keeps the old error reply.
+        var transport = Substitute.For<ITransport>();
+        var writtenJson = new List<string>();
+        transport.WriteAsync(Arg.Do<string>(s => writtenJson.Add(s)), Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        var handler = new ControlProtocolHandler(transport);
+        handler.OnHookCallback = (_, _, _) => throw new OperationCanceledException("hook gave up");
+
+        using var requestDoc = JsonDocument.Parse(HookRequestJson);
+        await handler.HandleControlRequestAsync(requestDoc.RootElement, CancellationToken.None);
+
+        await Assert.That(writtenJson.Count).IsEqualTo(1);
+        using var sent = JsonDocument.Parse(writtenJson[0]);
+        await Assert.That(sent.RootElement.GetProperty("response").GetProperty("subtype").GetString())
+            .IsEqualTo("error");
+    }
+
     [Test]
     public async Task HandleControlRequestAsync_HookCallback_SerializesOutputToCamelCase()
     {
