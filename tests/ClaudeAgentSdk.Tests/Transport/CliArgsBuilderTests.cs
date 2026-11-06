@@ -76,6 +76,8 @@ public class CliArgsBuilderTests
     [Arguments(PermissionMode.AcceptEdits, "acceptEdits")]
     [Arguments(PermissionMode.Plan, "plan")]
     [Arguments(PermissionMode.BypassPermissions, "bypassPermissions")]
+    [Arguments(PermissionMode.DontAsk, "dontAsk")]
+    [Arguments(PermissionMode.Auto, "auto")]
     public async Task PermissionMode_MapsToCliString(PermissionMode mode, string expected)
     {
         var args = CliArgsBuilder.Build(new ClaudeClientOptions { PermissionMode = mode });
@@ -89,6 +91,8 @@ public class CliArgsBuilderTests
     [Arguments(PermissionMode.AcceptEdits, "acceptEdits")]
     [Arguments(PermissionMode.Plan, "plan")]
     [Arguments(PermissionMode.BypassPermissions, "bypassPermissions")]
+    [Arguments(PermissionMode.DontAsk, "dontAsk")]
+    [Arguments(PermissionMode.Auto, "auto")]
     public async Task PermissionMode_PrintMode_MapsToCliString(PermissionMode mode, string expected)
     {
         var args = CliArgsBuilder.BuildForPrintMode("hi", new ClaudeClientOptions { PermissionMode = mode });

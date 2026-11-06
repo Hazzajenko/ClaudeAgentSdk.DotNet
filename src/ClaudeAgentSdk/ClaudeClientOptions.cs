@@ -60,7 +60,13 @@ public enum PermissionMode
     Default,
     AcceptEdits,
     Plan,
-    BypassPermissions
+    BypassPermissions,
+
+    /// <summary>Do not prompt. Deny each tool call that is not pre-approved.</summary>
+    DontAsk,
+
+    /// <summary>A model classifier approves or denies each tool call.</summary>
+    Auto
 }
 
 public enum EffortLevel

@@ -11,6 +11,8 @@ internal static class PermissionModeWire
         PermissionMode.AcceptEdits => "acceptEdits",
         PermissionMode.Plan => "plan",
         PermissionMode.BypassPermissions => "bypassPermissions",
+        PermissionMode.DontAsk => "dontAsk",
+        PermissionMode.Auto => "auto",
         _ => "default"
     };
 }

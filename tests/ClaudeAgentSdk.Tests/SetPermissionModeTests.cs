@@ -10,6 +10,8 @@ public class SetPermissionModeTests
     [Arguments(PermissionMode.AcceptEdits, "acceptEdits")]
     [Arguments(PermissionMode.Plan, "plan")]
     [Arguments(PermissionMode.BypassPermissions, "bypassPermissions")]
+    [Arguments(PermissionMode.DontAsk, "dontAsk")]
+    [Arguments(PermissionMode.Auto, "auto")]
     public async Task SetPermissionModeAsync_SendsModeInControlRequest(PermissionMode mode, string expected)
     {
         var transport = CreateMockThatAcceptsControlRequests();
