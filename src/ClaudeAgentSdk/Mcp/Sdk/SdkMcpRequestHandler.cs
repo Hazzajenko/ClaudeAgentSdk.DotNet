@@ -114,19 +114,28 @@ internal sealed class SdkMcpRequestHandler
         JsonElement arguments = @params.TryGetProperty("arguments", out var args)
             ? args : default;
 
+        // Unknown tools and handler failures go back as isError results the model can read,
+        // not as JSON-RPC errors. This matches the Python SDK.
         if (!_toolMap.TryGetValue(toolName, out var tool))
-            return BuildInternalError(id, $"Tool '{toolName}' not found");
+        {
+            return BuildToolResult(id, McpToolResult.Error($"Tool '{toolName}' not found"));
+        }
 
         McpToolResult result;
         try
         {
             result = await tool.Handler(arguments, cancellationToken);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (!(ex is OperationCanceledException && cancellationToken.IsCancellationRequested))
         {
-            return BuildInternalError(id, ex.Message);
+            result = McpToolResult.Error(ex.Message);
         }
 
+        return BuildToolResult(id, result);
+    }
+
+    private static JsonElement BuildToolResult(JsonElement? id, McpToolResult result)
+    {
         using var stream = new MemoryStream();
         using (var w = new Utf8JsonWriter(stream))
         {
@@ -138,7 +147,9 @@ internal sealed class SdkMcpRequestHandler
             result.WriteContentTo(w);
             w.WriteEndArray();
             if (result.IsError)
+            {
                 w.WriteBoolean("isError", true);
+            }
             w.WriteEndObject(); // result
             w.WriteEndObject();
         }

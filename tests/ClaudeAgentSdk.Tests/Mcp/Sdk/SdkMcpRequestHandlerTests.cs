@@ -119,7 +119,7 @@ public class SdkMcpRequestHandlerTests
     }
 
     [Test]
-    public async Task ToolsCall_UnknownTool_ReturnsJsonRpcError()
+    public async Task ToolsCall_UnknownTool_ReturnsIsErrorResult()
     {
         var handler = new SdkMcpRequestHandler(CreateServerWithTools());
 
@@ -128,13 +128,17 @@ public class SdkMcpRequestHandlerTests
             """);
         var response = await handler.HandleAsync(msg.RootElement, CancellationToken.None);
 
-        var error = response.GetProperty("error");
-        await Assert.That(error.GetProperty("code").GetInt32()).IsEqualTo(-32603);
-        await Assert.That(error.GetProperty("message").GetString()!).Contains("nonexistent");
+        await Assert.That(response.TryGetProperty("error", out _)).IsFalse();
+        await Assert.That(response.GetProperty("id").GetInt32()).IsEqualTo(5);
+        var result = response.GetProperty("result");
+        await Assert.That(result.GetProperty("isError").GetBoolean()).IsTrue();
+        await Assert.That(result.GetProperty("content")[0].GetProperty("type").GetString()).IsEqualTo("text");
+        await Assert.That(result.GetProperty("content")[0].GetProperty("text").GetString())
+            .IsEqualTo("Tool 'nonexistent' not found");
     }
 
     [Test]
-    public async Task ToolsCall_HandlerThrows_ReturnsJsonRpcError()
+    public async Task ToolsCall_HandlerThrows_ReturnsIsErrorResultWithMessage()
     {
         var throwTool = SdkMcpTool.Create("boom", "Throws",
             McpJsonSchema.Object(),
@@ -147,9 +151,34 @@ public class SdkMcpRequestHandlerTests
             """);
         var response = await handler.HandleAsync(msg.RootElement, CancellationToken.None);
 
-        var error = response.GetProperty("error");
-        await Assert.That(error.GetProperty("code").GetInt32()).IsEqualTo(-32603);
-        await Assert.That(error.GetProperty("message").GetString()!).Contains("kaboom");
+        await Assert.That(response.TryGetProperty("error", out _)).IsFalse();
+        var result = response.GetProperty("result");
+        await Assert.That(result.GetProperty("isError").GetBoolean()).IsTrue();
+        await Assert.That(result.GetProperty("content")[0].GetProperty("text").GetString()).IsEqualTo("kaboom");
+    }
+
+    [Test]
+    public async Task ToolsCall_HandlerCancelledByToken_ReturnsJsonRpcError()
+    {
+        using var cts = new CancellationTokenSource();
+        var tool = SdkMcpTool.Create("slow", "Cancelled",
+            McpJsonSchema.Object(),
+            async (args, ct) =>
+            {
+                await cts.CancelAsync();
+                ct.ThrowIfCancellationRequested();
+                return McpToolResult.Text("unreachable");
+            });
+
+        var handler = new SdkMcpRequestHandler(CreateServerWithTools(tool));
+
+        using var msg = JsonDocument.Parse("""
+            {"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"slow","arguments":{}}}
+            """);
+        var response = await handler.HandleAsync(msg.RootElement, cts.Token);
+
+        await Assert.That(response.TryGetProperty("result", out _)).IsFalse();
+        await Assert.That(response.GetProperty("error").GetProperty("code").GetInt32()).IsEqualTo(-32603);
     }
 
     [Test]
