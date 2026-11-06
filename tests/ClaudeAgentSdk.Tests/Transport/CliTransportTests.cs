@@ -52,6 +52,24 @@ public class CliTransportTests
         await Assert.That(received).IsEmpty();
     }
 
+    [Test]
+    public async Task ConnectAsync_ConnectTokenCancelled_StillReadsLaterStderr()
+    {
+        var received = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Action<string> callback = line => received.TrySetResult(line.Trim());
+        // The child writes one stderr line about 2 seconds after it starts.
+        await using var transport = OperatingSystem.IsWindows()
+            ? new CliTransport("cmd.exe", ["/c", "ping -n 3 127.0.0.1 >nul & echo late 1>&2"], stderrCallback: callback)
+            : new CliTransport("/bin/sh", ["-c", "sleep 2; echo late >&2"], stderrCallback: callback);
+        using var connectCts = new CancellationTokenSource();
+
+        await transport.ConnectAsync(connectCts.Token);
+        await connectCts.CancelAsync();
+
+        string line = await received.Task.WaitAsync(TimeSpan.FromSeconds(15));
+        await Assert.That(line).IsEqualTo("late");
+    }
+
     private sealed class ThrowingReader : TextReader
     {
         public override ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken) =>

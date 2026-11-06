@@ -17,6 +17,8 @@ internal sealed class CliTransport : ITransport
     private readonly Action<string>? _stderrCallback;
     private readonly bool _redirectStdin;
     private readonly int? _maxBufferSize;
+    // The stderr pump lives as long as the process. The connect token is only for one call.
+    private readonly CancellationTokenSource _stderrCts = new();
     private Process? _process;
     private bool _disposed;
 
@@ -64,7 +66,8 @@ internal sealed class CliTransport : ITransport
         {
             var stderr = _process.StandardError;
             var callback = _stderrCallback;
-            _ = Task.Run(() => PumpStderrAsync(stderr, callback, cancellationToken), cancellationToken);
+            var stderrToken = _stderrCts.Token;
+            _ = Task.Run(() => PumpStderrAsync(stderr, callback, stderrToken), stderrToken);
         }
     }
 
@@ -151,6 +154,7 @@ internal sealed class CliTransport : ITransport
 
         if (_process is null)
         {
+            _stderrCts.Dispose();
             return;
         }
 
@@ -178,6 +182,9 @@ internal sealed class CliTransport : ITransport
             _process.Kill();
         }
 
+        // Stop the stderr pump only after the process is gone, so its last lines still reach the callback.
+        await _stderrCts.CancelAsync();
+        _stderrCts.Dispose();
         _process.Dispose();
         _process = null;
     }
