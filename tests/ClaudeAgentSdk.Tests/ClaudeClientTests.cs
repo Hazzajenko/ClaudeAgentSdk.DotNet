@@ -32,6 +32,31 @@ public class ClaudeClientTests
     }
 
     [Test]
+    public async Task SetModelAsync_ModelWithQuote_WritesValidJson()
+    {
+        var transport = CreateMockWithFlow("""
+            {"type":"result","subtype":"success","duration_ms":0,"duration_api_ms":0,"is_error":false,"num_turns":0,"session_id":"s1"}
+            """);
+
+        await using var client = new ClaudeClient(transport: transport);
+        await foreach (var _ in client.SendAsync("test")) { }
+
+        string? sentModel = null;
+        transport.OnWrite = json =>
+        {
+            using var doc = JsonDocument.Parse(json);
+            JsonElement root = doc.RootElement;
+            string requestId = root.GetProperty("request_id").GetString()!;
+            sentModel = root.GetProperty("request").GetProperty("model").GetString();
+            transport.EnqueueOutput("{\"type\":\"control_response\",\"response\":{\"subtype\":\"success\",\"request_id\":\"" + requestId + "\",\"response\":{}}}");
+        };
+
+        await client.SetModelAsync("claude\"evil");
+
+        await Assert.That(sentModel).IsEqualTo("claude\"evil");
+    }
+
+    [Test]
     public async Task ClaudeClient_DisposeAsync_CanBeCalledMultipleTimes()
     {
         var client = new ClaudeClient();

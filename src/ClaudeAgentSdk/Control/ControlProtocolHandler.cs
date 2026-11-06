@@ -110,9 +110,14 @@ internal sealed class ControlProtocolHandler
         {
             JsonElement responseData;
 
-            if (subtype == "hook_callback" && OnHookCallback is not null)
+            if (subtype == "hook_callback")
             {
                 string callbackId = request.TryGetProperty("callback_id", out var cb) ? cb.GetString() ?? "" : "";
+                if (OnHookCallback is null)
+                {
+                    throw new InvalidOperationException($"No hook callback found for ID: {callbackId}");
+                }
+
                 JsonElement inputElement = request.TryGetProperty("input", out var inp) ? inp.Clone() : default;
 
                 var typedInput = inputElement.Deserialize(ClaudeJsonContext.Default.HookInput)
@@ -121,8 +126,13 @@ internal sealed class ControlProtocolHandler
                 HookOutput output = await OnHookCallback(callbackId, typedInput, cancellationToken);
                 responseData = output.ToJsonElement();
             }
-            else if (subtype == "can_use_tool" && OnCanUseTool is not null)
+            else if (subtype == "can_use_tool")
             {
+                if (OnCanUseTool is null)
+                {
+                    throw new InvalidOperationException("canUseTool callback is not provided");
+                }
+
                 string toolName = request.TryGetProperty("tool_name", out var tn) ? tn.GetString() ?? "" : "";
                 JsonElement input = request.TryGetProperty("input", out var inp) ? inp.Clone() : default;
 
@@ -137,16 +147,21 @@ internal sealed class ControlProtocolHandler
                 PermissionResult result = await OnCanUseTool(toolName, input, context, cancellationToken);
                 responseData = SerializePermissionResult(result, input);
             }
-            else if (subtype == "mcp_message" && OnMcpMessage is not null)
+            else if (subtype == "mcp_message")
             {
                 string serverName = request.GetProperty("server_name").GetString()!;
+                if (OnMcpMessage is null)
+                {
+                    throw new InvalidOperationException($"SDK MCP server '{serverName}' not found");
+                }
+
                 JsonElement message = request.GetProperty("message").Clone();
                 var mcpResponse = await OnMcpMessage(serverName, message, cancellationToken);
                 responseData = BuildMcpResponseWrapper(mcpResponse);
             }
             else
             {
-                responseData = default;
+                throw new InvalidOperationException($"Unsupported control request subtype: {subtype}");
             }
 
             await WriteControlResponseAsync(requestId, responseData, cancellationToken);
