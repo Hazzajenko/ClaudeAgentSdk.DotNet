@@ -21,7 +21,11 @@ internal static class WireMapper
         Model = wire.Message.Model,
         ParentToolUseId = wire.ParentToolUseId,
         Error = wire.Error,
-        Usage = wire.Message.Usage
+        Usage = wire.Message.Usage,
+        MessageId = wire.Message.Id,
+        StopReason = wire.Message.StopReason,
+        SessionId = wire.SessionId,
+        Uuid = wire.Uuid
     };
 
     public static UserMessage MapUserMessage(UserMessageWire wire) => new()
@@ -29,7 +33,8 @@ internal static class WireMapper
         Content = MapUserContent(wire.Message.Content),
         Uuid = wire.Uuid,
         ParentToolUseId = wire.ParentToolUseId,
-        ToolUseResult = wire.ToolUseResult
+        ToolUseResult = wire.ToolUseResult,
+        Origin = MapOrigin(wire.Origin)
     };
 
     public static ResultMessage MapResultMessage(ResultMessageWire wire) => new()
@@ -44,7 +49,15 @@ internal static class WireMapper
         TotalCostUsd = wire.TotalCostUsd,
         Usage = wire.Usage,
         Result = wire.Result,
-        StructuredOutput = wire.StructuredOutput
+        StructuredOutput = wire.StructuredOutput,
+        ModelUsage = wire.ModelUsage?.AsReadOnly(),
+        PermissionDenials = wire.PermissionDenials,
+        DeferredToolUse = wire.DeferredToolUse,
+        Errors = wire.Errors?.AsReadOnly(),
+        ApiErrorStatus = wire.ApiErrorStatus,
+        TerminalReason = wire.TerminalReason,
+        Uuid = wire.Uuid,
+        Origin = MapOrigin(wire.Origin)
     };
 
     public static StreamEvent MapStreamEvent(StreamEventWire wire) => new()
@@ -55,21 +68,27 @@ internal static class WireMapper
         ParentToolUseId = wire.ParentToolUseId
     };
 
-    public static RateLimitEvent MapRateLimitEvent(RateLimitEventWire wire) => new()
+    public static RateLimitEvent MapRateLimitEvent(RateLimitEventWire wire)
     {
-        Uuid = wire.Uuid,
-        SessionId = wire.SessionId,
-        RateLimitInfo = new RateLimitInfo
+        var info = wire.RateLimitInfo.Deserialize(ClaudeJsonContext.Default.RateLimitInfoWire)
+            ?? throw new JsonException("rate_limit_info must be an object");
+        return new RateLimitEvent
         {
-            Status = wire.RateLimitInfo.Status,
-            ResetsAt = wire.RateLimitInfo.ResetsAt,
-            RateLimitType = wire.RateLimitInfo.RateLimitType,
-            Utilization = wire.RateLimitInfo.Utilization,
-            OverageStatus = wire.RateLimitInfo.OverageStatus,
-            OverageResetsAt = wire.RateLimitInfo.OverageResetsAt,
-            OverageDisabledReason = wire.RateLimitInfo.OverageDisabledReason
-        }
-    };
+            Uuid = wire.Uuid,
+            SessionId = wire.SessionId,
+            RateLimitInfo = new RateLimitInfo
+            {
+                Status = info.Status,
+                ResetsAt = info.ResetsAt,
+                RateLimitType = info.RateLimitType,
+                Utilization = info.Utilization,
+                OverageStatus = info.OverageStatus,
+                OverageResetsAt = info.OverageResetsAt,
+                OverageDisabledReason = info.OverageDisabledReason,
+                Raw = wire.RateLimitInfo
+            }
+        };
+    }
 
     public static Message MapSystemMessage(SystemMessageWire wire, JsonElement rootClone)
     {
@@ -131,6 +150,26 @@ internal static class WireMapper
             ToolUseId = data.ToolUseId,
             Usage = data.Usage
         };
+    }
+
+    // Like the Python SDK, an origin that is not an object with a string "kind" reads as null.
+    private static MessageOrigin? MapOrigin(JsonElement? origin)
+    {
+        if (origin is not { ValueKind: JsonValueKind.Object } element
+            || !element.TryGetProperty("kind", out var kind)
+            || kind.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        try
+        {
+            return element.Deserialize(ClaudeJsonContext.Default.MessageOrigin);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private static object MapUserContent(JsonElement content) => content.ValueKind switch
