@@ -225,6 +225,21 @@ public class SdkMcpRequestHandlerTests
     }
 
     [Test]
+    public async Task Ping_ReturnsEmptyResultWithId()
+    {
+        var handler = new SdkMcpRequestHandler(CreateServerWithTools());
+
+        using var msg = JsonDocument.Parse("""{"jsonrpc":"2.0","id":"p1","method":"ping"}""");
+        var response = await handler.HandleAsync(msg.RootElement, CancellationToken.None);
+
+        await Assert.That(response.GetProperty("id").GetString()).IsEqualTo("p1");
+        await Assert.That(response.TryGetProperty("error", out _)).IsFalse();
+        var result = response.GetProperty("result");
+        await Assert.That(result.ValueKind).IsEqualTo(JsonValueKind.Object);
+        await Assert.That(result.EnumerateObject().Any()).IsFalse();
+    }
+
+    [Test]
     public async Task UnknownMethod_ReturnsMethodNotFoundError()
     {
         var handler = new SdkMcpRequestHandler(CreateServerWithTools());

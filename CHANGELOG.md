@@ -20,6 +20,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - An unknown tool or an exception from an SDK MCP tool handler now comes back as an `isError` tool result with the message, which the model can read. Before, it came back as a JSON-RPC error. A handler that throws `OperationCanceledException` after its token is cancelled still gets a JSON-RPC error.
 - An SDK MCP server now echoes a JSON-RPC `id` back unchanged. Before, a string `id` threw before the request was handled.
 - An SDK MCP server now cancels the token of a running tool handler when the CLI sends `notifications/cancelled` for its call, so an interrupt can stop the tool. The cancelled call gets JSON-RPC error `-32800`, also when the handler ignores the token and returns a result.
+- An SDK MCP server now answers `ping` with an empty result. Before, it answered with a method-not-found error.
 
 ### Security
 

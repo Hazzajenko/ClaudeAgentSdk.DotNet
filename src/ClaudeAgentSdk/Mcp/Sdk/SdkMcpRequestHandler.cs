@@ -38,6 +38,7 @@ internal sealed class SdkMcpRequestHandler
                 "initialize" => BuildInitializeResponse(id),
                 "tools/list" => BuildToolsListResponse(id),
                 "tools/call" => await HandleToolCallAsync(message, id, cancellationToken),
+                "ping" => BuildEmptyResult(id),
                 "notifications/initialized" => BuildEmptyResult(id),
                 "notifications/cancelled" => HandleCancelled(message),
                 _ => BuildMethodNotFoundError(id, method ?? "null")
