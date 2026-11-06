@@ -97,9 +97,29 @@ internal static class WireMapper
             "task_started" => MapTaskStarted(wire, rootClone),
             "task_progress" => MapTaskProgress(wire, rootClone),
             "task_notification" => MapTaskNotification(wire, rootClone),
+            "hook_started" or "hook_response" => MapHookEvent(wire, rootClone),
             _ => new SystemMessage { Subtype = wire.Subtype, Data = rootClone }
         };
     }
+
+    private static HookEventMessage MapHookEvent(SystemMessageWire wire, JsonElement rootClone) => new()
+    {
+        Subtype = wire.Subtype,
+        Data = rootClone,
+        HookEventName = ReadNonEmptyString(rootClone, "hook_event")
+            ?? ReadNonEmptyString(rootClone, "hook_name")
+            ?? ReadNonEmptyString(rootClone, "hook_event_name")
+            ?? "",
+        SessionId = ReadNonEmptyString(rootClone, "session_id"),
+        Uuid = ReadNonEmptyString(rootClone, "uuid")
+    };
+
+    private static string? ReadNonEmptyString(JsonElement element, string name) =>
+        element.TryGetProperty(name, out JsonElement value)
+        && value.ValueKind == JsonValueKind.String
+        && value.GetString() is { Length: > 0 } text
+            ? text
+            : null;
 
     private static TaskStartedMessage MapTaskStarted(SystemMessageWire wire, JsonElement rootClone)
     {

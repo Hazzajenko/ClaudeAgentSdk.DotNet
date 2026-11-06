@@ -190,6 +190,7 @@ public static class Claude
         TaskStartedMessage t => $"[task_started] {t.TaskId}: {t.Description}",
         TaskProgressMessage t => $"[task_progress] {t.TaskId} tokens={t.Usage.TotalTokens}",
         TaskNotificationMessage t => $"[task_notification] {t.TaskId}: {t.Status}",
+        HookEventMessage h => $"[{h.Subtype}] {h.HookEventName}",
         SystemMessage s => $"[system] {s.Subtype}",
         AssistantMessage a => $"[assistant] {FormatBlocks(a.Content)}",
         UserMessage u => $"[user] {FormatUserContent(u.Content)}",

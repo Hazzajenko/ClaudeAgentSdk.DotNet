@@ -202,3 +202,16 @@ public sealed record TaskNotificationMessage : SystemMessage
     public string? ToolUseId { get; init; }
     public TaskUsage? Usage { get; init; }
 }
+
+/// <summary>
+/// A <c>hook_started</c> or <c>hook_response</c> system frame. The CLI sends these for every hook
+/// when <c>ClaudeClientOptions.IncludeHookEvents</c> is true, and for SessionStart and Setup always.
+/// The full frame is in <see cref="SystemMessage.Data"/>.
+/// </summary>
+public sealed record HookEventMessage : SystemMessage
+{
+    /// <summary>The hook event name, for example <c>PreToolUse</c>. Empty when the frame has no name.</summary>
+    public required string HookEventName { get; init; }
+    public string? SessionId { get; init; }
+    public string? Uuid { get; init; }
+}
