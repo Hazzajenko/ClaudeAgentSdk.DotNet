@@ -195,7 +195,7 @@ public sealed class ClaudeClient : IAsyncDisposable
     }
 
     public async Task InterruptAsync(CancellationToken cancellationToken = default) =>
-        await SendSimpleControlRequestAsync("""{"subtype":"interrupt"}""", cancellationToken);
+        await SendControlRequestAsync(ControlRequests.SubtypeOnly("interrupt"), cancellationToken);
 
     public async Task SetPermissionModeAsync(PermissionMode mode, CancellationToken cancellationToken = default)
     {
@@ -206,45 +206,36 @@ public sealed class ClaudeClient : IAsyncDisposable
             PermissionMode.BypassPermissions => "bypassPermissions",
             _ => "default"
         };
-        await SendSimpleControlRequestAsync($$$"""{"subtype":"set_permission_mode","mode":"{{{modeStr}}}"}""", cancellationToken);
+        await SendControlRequestAsync(ControlRequests.SetPermissionMode(modeStr), cancellationToken);
     }
 
-    public async Task SetModelAsync(string? model, CancellationToken cancellationToken = default)
-    {
-        string json = model is not null
-            ? $$$"""{"subtype":"set_model","model":"{{{model}}}"}"""
-            : """{"subtype":"set_model","model":null}""";
-        await SendSimpleControlRequestAsync(json, cancellationToken);
-    }
+    public async Task SetModelAsync(string? model, CancellationToken cancellationToken = default) =>
+        await SendControlRequestAsync(ControlRequests.SetModel(model), cancellationToken);
 
     public async Task RewindFilesAsync(string userMessageId, CancellationToken cancellationToken = default) =>
-        await SendSimpleControlRequestAsync($$$"""{"subtype":"rewind_files","user_message_id":"{{{userMessageId}}}"}""", cancellationToken);
+        await SendControlRequestAsync(ControlRequests.RewindFiles(userMessageId), cancellationToken);
 
     public async Task ReconnectMcpServerAsync(string serverName, CancellationToken cancellationToken = default) =>
-        await SendSimpleControlRequestAsync($$$"""{"subtype":"mcp_reconnect","serverName":"{{{serverName}}}"}""", cancellationToken);
+        await SendControlRequestAsync(ControlRequests.McpReconnect(serverName), cancellationToken);
 
-    public async Task ToggleMcpServerAsync(string serverName, bool enabled, CancellationToken cancellationToken = default)
-    {
-        string enabledStr = enabled ? "true" : "false";
-        await SendSimpleControlRequestAsync($$$"""{"subtype":"mcp_toggle","serverName":"{{{serverName}}}","enabled":{{{enabledStr}}}}""", cancellationToken);
-    }
+    public async Task ToggleMcpServerAsync(string serverName, bool enabled, CancellationToken cancellationToken = default) =>
+        await SendControlRequestAsync(ControlRequests.McpToggle(serverName, enabled), cancellationToken);
 
     public async Task StopTaskAsync(string taskId, CancellationToken cancellationToken = default) =>
-        await SendSimpleControlRequestAsync($$$"""{"subtype":"stop_task","task_id":"{{{taskId}}}"}""", cancellationToken);
+        await SendControlRequestAsync(ControlRequests.StopTask(taskId), cancellationToken);
 
     public async Task<Mcp.McpStatusResponse> GetMcpStatusAsync(CancellationToken cancellationToken = default)
     {
-        var result = await SendSimpleControlRequestAsync("""{"subtype":"mcp_status"}""", cancellationToken);
+        var result = await SendControlRequestAsync(ControlRequests.SubtypeOnly("mcp_status"), cancellationToken);
         return Mcp.McpStatusParser.Parse(result);
     }
 
-    private async Task<JsonElement> SendSimpleControlRequestAsync(string requestJson, CancellationToken cancellationToken)
+    private async Task<JsonElement> SendControlRequestAsync(JsonElement request, CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (_controlHandler is null) throw new InvalidOperationException("Not connected");
 
-        using var doc = JsonDocument.Parse(requestJson);
-        return await _controlHandler.SendControlRequestAsync(doc.RootElement.Clone(), cancellationToken: cancellationToken);
+        return await _controlHandler.SendControlRequestAsync(request, cancellationToken: cancellationToken);
     }
 
     private async Task<HookOutput> HandleHookCallbackAsync(
