@@ -51,7 +51,7 @@ The Claude CLI's JSON output has several quirks that required workarounds:
 
 ## Transport & Control Protocol
 
-- `JsonStreamReader` buffers partial JSON lines. Only catches `JsonException` for incomplete JSON detection. All other exceptions propagate immediately.
+- `JsonStreamReader` parses each stdout line on its own. It skips blank lines and lines that do not start with `{`, because the CLI can write debug text such as `[SandboxDebug] ...` to stdout. A `{` line that does not parse throws `MessageParseException`. It does not join a line with the next line, so one JSON message split over two lines is not supported. `maxBufferSize` limits the length of one JSON line.
 - `ControlProtocolHandler` uses `SemaphoreSlim` write lock to prevent interleaved JSON on stdin.
 - Initialize handshake has a 120s timeout, because MCP servers can be slow to start.
 - Background reader task routes control messages vs content messages via bounded `Channel<Message>` with capacity 100.
