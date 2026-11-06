@@ -205,7 +205,7 @@ public sealed record TaskNotificationMessage : SystemMessage
 
 /// <summary>
 /// A <c>hook_started</c> or <c>hook_response</c> system frame. The CLI sends these for every hook
-/// when <c>ClaudeClientOptions.IncludeHookEvents</c> is true, and for SessionStart and Setup always.
+/// when <see cref="ClaudeClientOptions.IncludeHookEvents"/> is true, and for SessionStart and Setup always.
 /// The full frame is in <see cref="SystemMessage.Data"/>.
 /// </summary>
 public sealed record HookEventMessage : SystemMessage

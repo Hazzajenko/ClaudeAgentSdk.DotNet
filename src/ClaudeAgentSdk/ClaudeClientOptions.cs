@@ -27,6 +27,12 @@ public sealed record ClaudeClientOptions
     public bool ContinueConversation { get; init; }
     public string? Resume { get; init; }
     public bool IncludePartialMessages { get; init; }
+
+    /// <summary>
+    /// Sends <c>--include-hook-events</c>, so the CLI emits a <see cref="Messages.HookEventMessage"/> for every hook.
+    /// The CLI sends SessionStart and Setup hook events without this option too.
+    /// </summary>
+    public bool IncludeHookEvents { get; init; }
     public EffortLevel? Effort { get; init; }
     public ThinkingConfig? Thinking { get; init; }
     public bool ForkSession { get; init; }

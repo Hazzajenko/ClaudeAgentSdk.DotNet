@@ -287,6 +287,22 @@ public class CliArgsBuilderTests
     }
 
     [Test]
+    public async Task IncludeHookEvents_True_AddsFlag()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions { IncludeHookEvents = true });
+
+        await Assert.That(args).Contains("--include-hook-events");
+    }
+
+    [Test]
+    public async Task IncludeHookEvents_Default_OmitsFlag()
+    {
+        var args = CliArgsBuilder.Build(new ClaudeClientOptions());
+
+        await Assert.That(args).DoesNotContain("--include-hook-events");
+    }
+
+    [Test]
     public async Task EnableFileCheckpointing_SetsEnvVar()
     {
         var env = CliArgsBuilder.BuildEnvironmentVariables(new ClaudeClientOptions
